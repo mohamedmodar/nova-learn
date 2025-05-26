@@ -11,7 +11,7 @@ import torch # For Two-Tower model
 
 # --- Import components from other scripts ---
 from sbert_recommender_component import get_sbert_recommendations, sbert_model as loaded_sbert_model, course_embeddings_tensor as loaded_sbert_course_embeddings, df_courses as sbert_df_courses
-from two_tower_pytorch_design import TwoTowerModel, UserQueryTower, ItemTower 
+from adapted_two_tower_model import TwoTowerModel, UserTower as UserQueryTower, ItemTower
 from adapted_two_tower_model import CourseRecommender
 
 # --- Configuration ---
