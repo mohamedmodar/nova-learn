@@ -1,0 +1,94 @@
+# generate_sbert_embeddings.py
+"""Generates SBERT embeddings for course content."""
+
+import pandas as pd
+import pickle
+from sentence_transformers import SentenceTransformer
+import os
+import sys
+import torch # Import torch to check for GPU availability
+
+# --- Add Parent Directory for Package Import ---
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(SCRIPT_DIR)
+sys.path.append(PARENT_DIR)
+
+# Now import from the package
+import config, utils
+
+# Ensure the models directory exists
+os.makedirs(config.MODEL_DIR, exist_ok=True)
+
+# Define output path using the updated config structure
+SBERT_EMBEDDINGS_OUTPUT_PATH = os.path.join(config.MODEL_DIR, "course_sbert_embeddings.pkl")
+
+def generate_embeddings():
+    """Loads data, generates SBERT embeddings, and saves them."""
+    print("Starting SBERT embedding generation...")
+    
+    # 1. Load course data using the updated utils function
+    print(f"Loading course data from: {config.COURSE_DATA_PATH}")
+    # utils.load_course_data now only keeps specified columns: title, descrition, skills, adjusted_rating, skills_list
+    courses_df = utils.load_course_data(config.COURSE_DATA_PATH)
+    if courses_df is None or courses_df.empty:
+        print("Failed to load course data or required columns missing. Aborting SBERT generation.")
+        return
+
+    # 2. Prepare text data for SBERT using ONLY the selected text columns
+    # User specified: Skills, title, descrition
+    print("Preparing text data using columns: title, descrition, skills_list")
+    courses_df["sbert_text"] = (
+        courses_df["title"].fillna("") + ". " + # Add separator
+        courses_df["descrition"].fillna("") + ". " + # Use CORRECTED name, add separator
+        courses_df["skills_list"].apply(lambda x: " ".join(x) if isinstance(x, list) else "").fillna("") # Derived from 'Skills'
+    )
+    # Handle potential empty strings after concatenation
+    courses_df["sbert_text"] = courses_df["sbert_text"].apply(lambda x: x.strip() if x.strip() else "No content")
+    print("Combined text fields for SBERT.")
+
+    # 3. Initialize SBERT model
+    print(f"Initializing SBERT model: {config.SBERT_MODEL_NAME}")
+    # Check for GPU availability
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Using device: {device}")
+    try:
+        model = SentenceTransformer(config.SBERT_MODEL_NAME, device=device)
+    except Exception as e:
+        print(f"Error initializing SentenceTransformer model: {e}")
+        print("Attempting to load model on CPU explicitly.")
+        try:
+            model = SentenceTransformer(config.SBERT_MODEL_NAME, device="cpu")
+            print("Successfully loaded model on CPU.")
+        except Exception as e_cpu:
+            print(f"Failed to load model on CPU as well: {e_cpu}. Aborting.")
+            return
+            
+    print("SBERT model initialized.")
+
+    # 4. Generate embeddings
+    print("Generating embeddings (this may take some time)...")
+    course_texts = courses_df["sbert_text"].tolist()
+    
+    # Define batch size based on device
+    batch_size = 64 if device == "cuda" else 32 # Smaller batch size for CPU
+    print(f"Using batch size: {batch_size}")
+    
+    embeddings = model.encode(course_texts, show_progress_bar=True, batch_size=batch_size)
+    print(f"Embeddings generated. Shape: {embeddings.shape}")
+
+    # 5. Save the embeddings
+    print(f"Saving SBERT embeddings to: {SBERT_EMBEDDINGS_OUTPUT_PATH}")
+    with open(SBERT_EMBEDDINGS_OUTPUT_PATH, "wb") as f:
+        pickle.dump(embeddings, f)
+    print("Embeddings saved.")
+
+    # Update config path (in memory for this run)
+    print("Updating config path for SBERT...")
+    config.SBERT_EMBEDDINGS_PATH = SBERT_EMBEDDINGS_OUTPUT_PATH
+    print(f"Config in memory updated: SBERT Embeddings={config.SBERT_EMBEDDINGS_PATH}")
+
+    print("SBERT embedding generation complete.")
+
+if __name__ == "__main__":
+    generate_embeddings()
+
