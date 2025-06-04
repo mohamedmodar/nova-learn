@@ -10,19 +10,27 @@ from sklearn.feature_extraction.text import TfidfVectorizer # For type hinting, 
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 
+# Download required NLTK resources
+print("Downloading required NLTK resources...")
+nltk.download('punkt')
+nltk.download('punkt_tab')
+nltk.download('stopwords')
+print("NLTK resources downloaded successfully.")
+
 # Ensure NLTK resources are available (assuming they were downloaded by the setup script)
 # It's good practice to have this check or ensure it's run prior.
 # For this script, we assume content_based_setup_v2.py has run successfully.
 
 # --- Global Variables and Constants ---
-DATA_PATH = "cleaned_courses_with_enhanced_skills.csv"
-TFIDF_MATRIX_PATH = "tfidf_matrix.pkl"
-TFIDF_VECTORIZER_PATH = "tfidf_vectorizer.pkl"
+DATA_PATH = "data/final(ready for model).csv"
+TFIDF_MATRIX_PATH = "models/tfidf_matrix.pkl"
+TFIDF_VECTORIZER_PATH = "models/tfidf_vectorizer.pkl"
 
 # --- Load Precomputed Data and Models ---
 print("Loading precomputed data and models...")
 try:
     df_courses = pd.read_csv(DATA_PATH)
+    print(f"Available columns in DataFrame: {df_courses.columns.tolist()}")
     with open(TFIDF_MATRIX_PATH, "rb") as f:
         tfidf_matrix_courses = pickle.load(f)
     with open(TFIDF_VECTORIZER_PATH, "rb") as f:
@@ -101,9 +109,6 @@ def filter_courses(df, level=None, providers=None, required_skills=None, duratio
     if level:
         filtered_df = filtered_df[filtered_df['level'].notna() & filtered_df['level'].str.contains(level, case=False, na=False)]
     
-    if providers and isinstance(providers, list) and len(providers) > 0:
-        filtered_df = filtered_df[filtered_df['provider'].notna() & filtered_df['provider'].isin(providers)]
-        
     if required_skills and isinstance(required_skills, list) and len(required_skills) > 0:
         required_skills_lower = [skill.lower() for skill in required_skills]
         def has_all_skills(course_skills_list):
@@ -166,10 +171,18 @@ def recommend_courses(query_text=None, level=None, providers=None, skills=None,
     
     # 4. Select top N and desired columns
     recommendations = ranked_courses.head(top_n)    
-    output_columns = ['title', 'provider', 'url', 'level', 'skills', 'adjusted_rating', 'duration', 'combined_score']
-    if 'content_score' in recommendations.columns:
+    
+    # Get available columns
+    available_columns = recommendations.columns.tolist()
+    
+    # Define desired output columns and filter to only those that exist
+    desired_columns = ['title', 'url', 'level', 'skills', 'adjusted_rating', 'duration', 'combined_score']
+    output_columns = [col for col in desired_columns if col in available_columns]
+    
+    # Add score columns if they exist
+    if 'content_score' in available_columns:
         output_columns.append('content_score')
-    if 'sbert_score' in recommendations.columns:
+    if 'sbert_score' in available_columns:
         output_columns.append('sbert_score')
             
     return recommendations[output_columns]

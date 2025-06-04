@@ -5,8 +5,8 @@ import torch
 import numpy as np
 
 # --- Configuration ---
-COURSE_DATA_PATH = "cleaned_courses_with_enhanced_skills.csv"  # Contains course metadata
-SBERT_EMBEDDINGS_PATH = "course_sbert_embeddings.pkl"
+COURSE_DATA_PATH = "data/final(ready for model).csv"  # Contains course metadata
+SBERT_EMBEDDINGS_PATH = "models/course_sbert_embeddings.pkl"
 SBERT_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # --- Load SBERT Model (once) ---
@@ -21,11 +21,35 @@ except Exception as e:
 # --- Load Course Data and Embeddings (once) ---
 print(f"Loading course data from: {COURSE_DATA_PATH}")
 try:
-    df_courses = pd.read_csv(COURSE_DATA_PATH)
+    # Read CSV with more robust settings
+    df_courses = pd.read_csv(
+        COURSE_DATA_PATH,
+        quoting=1,  # QUOTE_ALL mode
+        escapechar='\\',  # Use backslash as escape character
+        lineterminator='\n',  # Explicitly set line terminator
+        on_bad_lines='warn'  # Warn about problematic lines instead of failing
+    )
+    
     if "skills" in df_courses.columns:
-        df_courses["skills"] = df_courses["skills"].apply(
-            lambda x: eval(x) if isinstance(x, str) and x.startswith("[") else ([] if pd.isna(x) else [x] if isinstance(x, str) else x)
-        )
+        def clean_skills(x):
+            if pd.isna(x):
+                return []
+            if isinstance(x, str):
+                # Remove any problematic characters and clean up the string
+                x = x.strip().replace("'", '"')
+                try:
+                    # Try to evaluate as a list
+                    if x.startswith('[') and x.endswith(']'):
+                        return eval(x)
+                    # If not a list format, split by comma and clean
+                    return [s.strip().strip('"\'') for s in x.split(',') if s.strip()]
+                except:
+                    # If evaluation fails, return as single item list
+                    return [x.strip().strip('"\'')]
+            return x
+        
+        df_courses["skills"] = df_courses["skills"].apply(clean_skills)
+    
     print(f"Course data loaded. Shape: {df_courses.shape}")
 except FileNotFoundError:
     print(f"Error: Course data file not found at {COURSE_DATA_PATH}.")

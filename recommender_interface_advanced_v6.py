@@ -15,10 +15,10 @@ from adapted_two_tower_model import TwoTowerModel, UserTower as UserQueryTower, 
 from adapted_two_tower_model import CourseRecommender
 
 # --- Configuration ---
-TFIDF_VECTORIZER_PATH = "tfidf_vectorizer.pkl"
-TFIDF_MATRIX_PATH = "tfidf_matrix.pkl"
-COURSE_DATA_PATH = "cleaned_courses_with_enhanced_skills.csv"
-SBERT_COURSE_EMBEDDINGS_FOR_TT_PATH = "course_sbert_embeddings.pkl"
+TFIDF_VECTORIZER_PATH = "models/tfidf_vectorizer.pkl"
+TFIDF_MATRIX_PATH = "models/tfidf_matrix.pkl"
+COURSE_DATA_PATH = "data/final(ready for model).csv"
+SBERT_COURSE_EMBEDDINGS_FOR_TT_PATH = "models/course_sbert_embeddings.pkl"
 
 # --- Global Variables / Load Models ---
 print("Loading TF-IDF components...")
