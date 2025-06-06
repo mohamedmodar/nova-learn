@@ -43,3 +43,23 @@ training_history.pkl
 
 # Logs
 *.log 
+
+# Model files (large binary files)
+models/*.pkl
+models/*.h5
+models/*.weights.*
+
+# But track empty model directories
+!models/.gitkeep
+
+# Data files
+data/*.csv
+data/*.json
+data/*.pkl
+
+# But track empty data directories
+!data/.gitkeep
+
+# Logs
+*.log
+logs/ 
