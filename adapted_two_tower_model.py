@@ -105,7 +105,7 @@ class CourseRecommender:
         """Load course data and pre-compute item embeddings"""
         try:
             # Load course data
-            self.courses_df = pd.read_csv('cleaned_courses_with_enhanced_skills.csv')
+            self.courses_df = pd.read_csv('data/final(final).csv')
             print(f"Loaded course data with shape: {self.courses_df.shape}")
             
             # Process skills_list column if it exists
@@ -115,7 +115,7 @@ class CourseRecommender:
                 )
             
             # Load SBERT embeddings
-            with open('course_sbert_embeddings.pkl', 'rb') as f:
+            with open('models/course_sbert_embeddings.pkl', 'rb') as f:
                 course_embeddings = pickle.load(f)
             
             # Convert to TensorFlow tensor

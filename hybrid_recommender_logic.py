@@ -22,7 +22,7 @@ print("NLTK resources downloaded successfully.")
 # For this script, we assume content_based_setup_v2.py has run successfully.
 
 # --- Global Variables and Constants ---
-DATA_PATH = "data/final(ready for model).csv"
+DATA_PATH = "data/final(final).csv"
 TFIDF_MATRIX_PATH = "models/tfidf_matrix.pkl"
 TFIDF_VECTORIZER_PATH = "models/tfidf_vectorizer.pkl"
 

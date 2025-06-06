@@ -5,7 +5,7 @@ import torch
 import numpy as np
 
 # --- Configuration ---
-COURSE_DATA_PATH = "data/final(ready for model).csv"  # Contains course metadata
+COURSE_DATA_PATH = "data/final(final).csv"  # Contains course metadata
 SBERT_EMBEDDINGS_PATH = "models/course_sbert_embeddings.pkl"
 SBERT_MODEL_NAME = "all-MiniLM-L6-v2"
 

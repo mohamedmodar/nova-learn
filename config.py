@@ -16,7 +16,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 # --- File Paths ---
 # Input data path (adjust if needed)
-COURSE_DATA_PATH = "data/final(ready for model).csv" # Adjusted to the provided dataset name
+COURSE_DATA_PATH = "data/final(final).csv" # Adjusted to the provided dataset name
 
 # Path for generated interaction data
 INTERACTION_DATA_PATH = os.path.join(DATA_DIR, "fake_user_interactions.csv") # Added this line

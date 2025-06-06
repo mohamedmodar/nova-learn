@@ -19,8 +19,9 @@ import config, utils
 # Ensure the models directory exists
 os.makedirs(config.MODEL_DIR, exist_ok=True)
 
-# Define output path using the updated config structure
+# Define output paths using the updated config structure
 SBERT_EMBEDDINGS_OUTPUT_PATH = os.path.join(config.MODEL_DIR, "course_sbert_embeddings.pkl")
+SBERT_COURSE_IDS_OUTPUT_PATH = os.path.join(config.MODEL_DIR, "sbert_course_ids.pkl")
 
 def generate_embeddings():
     """Loads data, generates SBERT embeddings, and saves them."""
@@ -36,14 +37,14 @@ def generate_embeddings():
 
     # 2. Prepare text data for SBERT using ONLY the selected text columns
     # User specified: Skills, title, descrition
-    print("Preparing text data using columns: title, descrition, skills_list")
-    courses_df["sbert_text"] = (
+    print("Preparing text data using columns: title, description, skills")
+    courses_df["processed_text"] = (
         courses_df["title"].fillna("") + ". " + # Add separator
-        courses_df["descrition"].fillna("") + ". " + # Use CORRECTED name, add separator
-        courses_df["skills_list"].apply(lambda x: " ".join(x) if isinstance(x, list) else "").fillna("") # Derived from 'Skills'
+        courses_df["description"].fillna("") + ". " + # Use CORRECTED name, add separator
+        courses_df["skills"].apply(lambda x: " ".join(x) if isinstance(x, list) else "").fillna("") # Derived from 'Skills'
     )
     # Handle potential empty strings after concatenation
-    courses_df["sbert_text"] = courses_df["sbert_text"].apply(lambda x: x.strip() if x.strip() else "No content")
+    courses_df["processed_text"] = courses_df["processed_text"].apply(lambda x: x.strip() if x.strip() else "No content")
     print("Combined text fields for SBERT.")
 
     # 3. Initialize SBERT model
@@ -67,7 +68,7 @@ def generate_embeddings():
 
     # 4. Generate embeddings
     print("Generating embeddings (this may take some time)...")
-    course_texts = courses_df["sbert_text"].tolist()
+    course_texts = courses_df["processed_text"].tolist()
     
     # Define batch size based on device
     batch_size = 64 if device == "cuda" else 32 # Smaller batch size for CPU
@@ -82,10 +83,17 @@ def generate_embeddings():
         pickle.dump(embeddings, f)
     print("Embeddings saved.")
 
-    # Update config path (in memory for this run)
-    print("Updating config path for SBERT...")
+    # Save course IDs for mapping
+    print(f"Saving course IDs to: {SBERT_COURSE_IDS_OUTPUT_PATH}")
+    with open(SBERT_COURSE_IDS_OUTPUT_PATH, "wb") as f:
+        pickle.dump(courses_df.index.tolist(), f)
+    print("Course IDs saved.")
+
+    # Update config paths (in memory for this run)
+    print("Updating config paths for SBERT...")
     config.SBERT_EMBEDDINGS_PATH = SBERT_EMBEDDINGS_OUTPUT_PATH
-    print(f"Config in memory updated: SBERT Embeddings={config.SBERT_EMBEDDINGS_PATH}")
+    config.SBERT_COURSE_IDS_PATH = SBERT_COURSE_IDS_OUTPUT_PATH
+    print(f"Config in memory updated: Embeddings={config.SBERT_EMBEDDINGS_PATH}, Course IDs={config.SBERT_COURSE_IDS_PATH}")
 
     print("SBERT embedding generation complete.")
 

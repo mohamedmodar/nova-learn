@@ -47,11 +47,11 @@ def generate_tfidf_components():
 
     # 2. Prepare text data for TF-IDF using ONLY the selected text columns
     # User specified: Skills, title, descrition
-    print("Preparing text data using columns: title, descrition, skills_list")
+    print("Preparing text data using columns: title, descrition, skills")
     courses_df["tfidf_text"] = (
         courses_df["title"].fillna("") + " " + 
-        courses_df["descrition"].fillna("") + " " + # Use CORRECTED 'descrition'
-        courses_df["skills_list"].apply(lambda x: " ".join(x) if isinstance(x, list) else "").fillna("") # Derived from 'Skills'
+        courses_df["description"].fillna("") + " " + # Use CORRECTED 'descrition'
+        courses_df["skills"].apply(lambda x: " ".join(x) if isinstance(x, list) else "").fillna("") # Derived from 'Skills'
     )
     print("Combined text fields for TF-IDF.")
 
@@ -66,7 +66,8 @@ def generate_tfidf_components():
         stop_words="english", 
         max_df=0.8,
         min_df=3,
-        ngram_range=(1, 2)
+        ngram_range=(1, 2),
+        max_features=5000
     )
     # Filter out rows where preprocessing might have failed (unlikely with regex but good practice)
     valid_processed_texts = courses_df.loc[courses_df["processed_text"] != "", "processed_text"]
@@ -88,6 +89,14 @@ def generate_tfidf_components():
     with open(TFIDF_MATRIX_OUTPUT_PATH, "wb") as f:
         pickle.dump(tfidf_matrix, f)
     print("Matrix saved.")
+
+    # Save course IDs for mapping
+    TFIDF_COURSE_IDS_OUTPUT_PATH = os.path.join(config.MODEL_DIR, "tfidf_course_ids.pkl")
+    print(f"Saving course IDs to: {TFIDF_COURSE_IDS_OUTPUT_PATH}")
+    tfidf_course_ids = courses_df.index.tolist()
+    with open(TFIDF_COURSE_IDS_OUTPUT_PATH, "wb") as f:
+        pickle.dump(tfidf_course_ids, f)
+    print("Course IDs saved.")
 
     # Update config paths (in memory for this run)
     print("Updating config paths for TF-IDF...")

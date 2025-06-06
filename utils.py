@@ -112,7 +112,7 @@ def load_course_data(file_path):
             "skills": "Skills", 
             "title": "title", 
             "adjusted_rating": "adjusted_rating", 
-            "descrition": "descrition" # Using CORRECTED name 'descrition'
+            "description": "description" # Using CORRECTED name 'descrition'
         }
         
         # Find actual column names (case-insensitive matching)
@@ -150,8 +150,8 @@ def load_course_data(file_path):
         # Ensure essential text columns are strings
         if "title" in df.columns:
             df["title"] = df["title"].fillna("").astype(str)
-        if "descrition" in df.columns: # Use CORRECTED name
-            df["descrition"] = df["descrition"].fillna("").astype(str)
+        if "description" in df.columns: # Use CORRECTED name
+            df["description"] = df["description"].fillna("").astype(str)
             
         print(f"Columns after loading and standardization: {df.columns.tolist()}")
         # Keep only the relevant columns + the derived skills_list
