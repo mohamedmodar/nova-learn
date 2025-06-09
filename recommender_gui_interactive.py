@@ -1,250 +1,243 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import pandas as pd
-from recommender_interface_advanced_v6 import get_recommendations
+from recommender_interface_advanced_v6 import get_recommendations, df_all_courses
 import webbrowser
 
 class InteractiveRecommenderGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("🚀 INTERACTIVE Course Recommender")
-        self.root.geometry("1200x850")
+        self.root.title("🚀 Personalized Course Recommender")
+        self.root.geometry("1200x800")
         
-        self.user_history = [] # Stores item_id strings
-        self.history_details = {} # Maps item_id to title for display
-        self.displayed_recs = pd.DataFrame() # Store the last recommendations
+        # --- State Management ---
+        self.session_history = [] # List of item_ids for liked courses
+        self.disliked_history = [] # List of item_ids for disliked courses
+        self.last_results = pd.DataFrame()
 
-        # Main layout
-        main_paned_window = ttk.PanedWindow(root, orient=tk.VERTICAL)
-        main_paned_window.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        # Top pane: controls and history
-        top_frame = ttk.Frame(main_paned_window, padding=5)
-        main_paned_window.add(top_frame, weight=1)
-
-        top_paned_window = ttk.PanedWindow(top_frame, orient=tk.HORIZONTAL)
-        top_paned_window.pack(fill=tk.BOTH, expand=True)
-
-        # Left side: Search controls
-        controls_frame = ttk.LabelFrame(top_paned_window, text="🔍 Search Controls", padding=10)
-        top_paned_window.add(controls_frame, weight=2)
-        self.setup_controls_tab(controls_frame)
-
-        # Right side: Session history
-        history_frame = ttk.LabelFrame(top_paned_window, text="👤 Session History (click recommendations to add)", padding=10)
-        top_paned_window.add(history_frame, weight=1)
-        self.setup_history_tab(history_frame)
-
-        # Bottom pane: Recommendations
-        results_frame = ttk.LabelFrame(main_paned_window, text="📚 Recommendations", padding=10)
-        main_paned_window.add(results_frame, weight=2)
-        self.setup_results_tab(results_frame)
+        # --- Main Layout ---
+        main_frame = ttk.Frame(root, padding="10")
+        main_frame.grid(row=0, column=0, sticky="nsew")
+        root.grid_columnconfigure(0, weight=1)
+        root.grid_rowconfigure(0, weight=1)
         
-        # Status bar
-        self.status_var = tk.StringVar(value="Ready...")
-        status_bar = ttk.Label(root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
+        # --- Left Panel: Search Controls ---
+        controls_frame = ttk.LabelFrame(main_frame, text="🔍 Search Controls", padding="10")
+        controls_frame.grid(row=0, column=0, padx=(0, 10), pady=(0, 10), sticky="ns")
+        main_frame.grid_columnconfigure(0, weight=0)
 
+        # --- Middle Panel: Results ---
+        results_frame = ttk.LabelFrame(main_frame, text="📚 Recommendations", padding="10")
+        results_frame.grid(row=0, column=1, sticky="nsew")
+        main_frame.grid_columnconfigure(1, weight=1)
+        main_frame.grid_rowconfigure(0, weight=1)
 
-    def setup_controls_tab(self, frame):
-        # Configure grid
-        frame.columnconfigure(1, weight=1)
+        # --- Right Panel: History ---
+        history_area_frame = ttk.LabelFrame(main_frame, text="🧠 Session Preferences", padding="10")
+        history_area_frame.grid(row=0, column=2, sticky="ns", padx=(10, 0))
+        main_frame.grid_columnconfigure(2, weight=0)
+
+        self.setup_controls(controls_frame)
+        self.setup_results_area(results_frame)
+        self.setup_history_area(history_area_frame)
         
+    def setup_controls(self, frame):
         row = 0
         # Query
-        ttk.Label(frame, text="Search Query:").grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(frame, text="Search Query:").grid(row=row, column=0, sticky="w", pady=2)
         self.query_entry = ttk.Entry(frame, width=40)
-        self.query_entry.grid(row=row, column=1, sticky=(tk.W, tk.E), pady=2)
-        row += 1
-
+        self.query_entry.grid(row=row+1, column=0, sticky="ew", pady=(0, 10))
+        row += 2
+        
         # Level
-        ttk.Label(frame, text="Level:").grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(frame, text="Level:").grid(row=row, column=0, sticky="w", pady=2)
         self.level_var = tk.StringVar(value="All Levels")
         level_combo = ttk.Combobox(frame, textvariable=self.level_var, values=('All Levels', 'Beginner', 'Intermediate', 'Advanced'))
-        level_combo.grid(row=row, column=1, sticky=(tk.W, tk.E), pady=2)
-        row += 1
-
+        level_combo.grid(row=row+1, column=0, sticky="ew", pady=(0, 10))
+        row += 2
+        
         # Skills
-        ttk.Label(frame, text="Skills:").grid(row=row, column=0, sticky=tk.W, pady=2)
-        self.skills_entry = ttk.Entry(frame)
-        self.skills_entry.grid(row=row, column=1, sticky=(tk.W, tk.E), pady=2)
-        row += 1
+        ttk.Label(frame, text="Skills (comma-separated):").grid(row=row, column=0, sticky="w", pady=2)
+        self.skills_entry = ttk.Entry(frame, width=40)
+        self.skills_entry.grid(row=row+1, column=0, sticky="ew", pady=(0, 10))
+        row += 2
 
-        # AI Enhancements (always on for this GUI)
-        ttk.Label(frame, text="AI Features:", font=('Arial', 9, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=(10,0))
-        ttk.Label(frame, text="Diversity, Personalization, Semantic Matching are ENABLED", foreground='blue').grid(row=row, column=1, sticky=tk.W, pady=(10,0))
-        row += 1
+        # AI Model
+        ttk.Label(frame, text="AI Model:").grid(row=row, column=0, sticky="w", pady=2)
+        self.model_var = tk.StringVar(value="hybrid")
+        model_combo = ttk.Combobox(frame, textvariable=self.model_var, values=('hybrid', 'sbert', 'two_tower', 'tfidf'))
+        model_combo.grid(row=row+1, column=0, sticky="ew", pady=(0, 10))
+        row += 2
 
         # Search Button
-        search_button = ttk.Button(frame, text="Search / Refresh", command=self.search)
-        search_button.grid(row=row, column=0, columnspan=2, pady=10)
+        search_button = ttk.Button(frame, text="Search", command=self.perform_search)
+        search_button.grid(row=row, column=0, sticky="ew", pady=10)
+        row += 1
 
+    def setup_results_area(self, frame):
+        frame.grid_rowconfigure(0, weight=1)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_columnconfigure(1, weight=0)
 
-    def setup_history_tab(self, frame):
-        frame.rowconfigure(0, weight=1)
-        frame.columnconfigure(0, weight=1)
+        # --- Results Display ---
+        results_frame = ttk.LabelFrame(frame, text="📚 Recommendations", padding="10")
+        results_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        results_frame.grid_rowconfigure(0, weight=1)
+        results_frame.grid_columnconfigure(0, weight=1)
         
-        self.history_listbox = tk.Listbox(frame, height=10)
-        self.history_listbox.grid(row=0, column=0, sticky="nsew", columnspan=2)
-        
-        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.history_listbox.yview)
-        scrollbar.grid(row=0, column=2, sticky="ns")
-        self.history_listbox.config(yscrollcommand=scrollbar.set)
-        
-        clear_button = ttk.Button(frame, text="Clear History", command=self.clear_history)
-        clear_button.grid(row=1, column=0, columnspan=3, pady=5)
-
-    def setup_results_tab(self, frame):
-        frame.rowconfigure(0, weight=1)
-        frame.columnconfigure(0, weight=1)
-
-        self.results_text = scrolledtext.ScrolledText(frame, wrap=tk.WORD, font=('Consolas', 9))
+        self.results_text = scrolledtext.ScrolledText(results_frame, wrap=tk.WORD, font=('Consolas', 9))
         self.results_text.grid(row=0, column=0, sticky="nsew")
-        # Prevent user from typing in the results area, which allows clicks to still register
-        self.results_text.bind("<KeyPress>", lambda e: "break")
-    
-    def search(self, from_history_update=False):
-        try:
-            self.status_var.set("🔄 Searching...")
-            self.root.update_idletasks()
+        
+        # --- History Panel ---
+        history_frame = ttk.LabelFrame(frame, text="🧠 Session Preferences", padding="10")
+        history_frame.grid(row=0, column=1, sticky="ns")
+        history_frame.grid_rowconfigure(1, weight=1)
 
-            query = self.query_entry.get().strip()
-            level = self.level_var.get()
-            skills_input = self.skills_entry.get().strip()
-            skills = [s.strip().lower() for s in skills_input.split(',')] if skills_input else None
+        ttk.Label(history_frame, text="Courses added here will personalize\nyour next search.", justify=tk.LEFT).grid(row=0, column=0, sticky="ew")
+        
+        self.liked_listbox = tk.Listbox(history_frame, height=10, background="#e6ffed")
+        self.liked_listbox.grid(row=1, column=0, sticky="ew", pady=5)
+        
+        ttk.Label(history_frame, text="Disliked Courses 👎").grid(row=2, column=0, sticky="w", pady=(10,0))
+        self.disliked_listbox = tk.Listbox(history_frame, height=10, background="#ffe6e6")
+        self.disliked_listbox.grid(row=3, column=0, sticky="ew", pady=5)
+        
+        button_frame = ttk.Frame(history_frame)
+        button_frame.grid(row=4, column=0, pady=10)
+        ttk.Button(button_frame, text="Clear Liked", command=self.clear_liked_history).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Clear Disliked", command=self.clear_disliked_history).pack(side=tk.LEFT)
 
-            if not query and not self.user_history:
-                messagebox.showwarning("Input Needed", "Please provide a search query or add items to your history first.")
-                self.status_var.set("Ready")
-                return
+    def setup_history_area(self, frame):
+        # Liked History
+        ttk.Label(frame, text="Liked Courses 👍").grid(row=0, column=0, sticky="w")
+        self.liked_listbox = tk.Listbox(frame, height=10, background="#e6ffed")
+        self.liked_listbox.grid(row=1, column=0, sticky="ew", pady=5)
+        
+        # Disliked History
+        ttk.Label(frame, text="Disliked Courses 👎").grid(row=2, column=0, sticky="w", pady=(10,0))
+        self.disliked_listbox = tk.Listbox(frame, height=10, background="#ffe6e6")
+        self.disliked_listbox.grid(row=3, column=0, sticky="ew", pady=5)
+        
+        # Clear Buttons
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=4, column=0, pady=10)
+        ttk.Button(button_frame, text="Clear Liked", command=self.clear_liked_history).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Clear Disliked", command=self.clear_disliked_history).pack(side=tk.LEFT)
 
-            if from_history_update:
-                print("Refreshing recommendations based on updated history...")
-            else:
-                print(f"Executing new search: query='{query}', skills={skills}, level={level}")
-
-            results = get_recommendations(
-                query_text=query,
-                level=level if level != 'All Levels' else None,
-                skills=skills,
-                top_n=10, # Get more to show variety
-                user_history=self.user_history,
-            )
-            
-            self.displayed_recs = results.copy()
-            self.display_results(results)
-            self.status_var.set(f"✅ Found {len(results)} recommendations. Click title to add to history.")
-
-        except Exception as e:
-            self.status_var.set(f"❌ Error: {e}")
-            messagebox.showerror("Error", f"An error occurred during search: {e}")
-
-    def add_to_history(self, event):
-        # Get item from the text widget tag
-        try:
-            # Get the index of the mouse click for robustness
-            index = self.results_text.index(f"@{event.x},{event.y}")
-
-            # Find the first tag that looks like our item_id tag
-            item_id = None
-            tags = self.results_text.tag_names(index)
-            for tag in tags:
-                if tag.startswith("item-"):
-                    item_id = tag.split("-", 1)[1]
-                    break
-            
-            if not item_id:
-                return
-
-            if item_id in self.user_history:
-                self.status_var.set(f"Item is already in history.")
-                return
-
-            title = self.history_details[item_id]
-            self.user_history.append(item_id)
-            
-            self.history_listbox.insert(tk.END, f"• {title}")
-            self.history_listbox.yview(tk.END)
-            
-            self.status_var.set(f"Added '{title[:30]}...' to history. Refreshing...")
-            self.search(from_history_update=True)
-
-        except Exception as e:
-            print(f"Error adding to history: {e}")
-
-    def clear_history(self):
-        self.user_history.clear()
-        self.history_details.clear()
-        self.history_listbox.delete(0, tk.END)
-        self.status_var.set("History cleared. Refreshing recommendations...")
-        self.search(from_history_update=True)
-
-    def display_results(self, results):
-        self.results_text.config(state="normal")
-        self.results_text.delete(1.0, tk.END)
-        self.history_details.clear()
-
-        if results.empty:
-            self.results_text.insert(tk.END, "🚫 No recommendations found for your criteria.")
+    def perform_search(self):
+        query = self.query_entry.get().strip()
+        skills_input = self.skills_entry.get().strip()
+        skills = [s.strip().lower() for s in skills_input.split(',')] if skills_input else None
+        
+        if not query and not self.session_history:
+            messagebox.showwarning("Search Warning", "Please provide a search query or add items to your liked history.")
             return
             
-        for _, row in results.iterrows():
-            item_id = row['item_id']
-            title = row['title']
-            self.history_details[item_id] = title
-            
-            # --- Define clickable tag for the title ---
-            title_tag = f"item-{item_id}"
-            
-            # Header
-            self.results_text.insert(tk.END, f"📚 {title}\n", (title_tag, "title_font"))
-            self.results_text.tag_config(title_tag, foreground="blue", underline=True)
-            self.results_text.tag_bind(title_tag, "<Button-1>", self.add_to_history)
-            self.results_text.tag_bind(title_tag, "<Enter>", lambda e, t=title_tag: self.results_text.config(cursor="hand2"))
-            self.results_text.tag_bind(title_tag, "<Leave>", lambda e, t=title_tag: self.results_text.config(cursor=""))
-            self.results_text.tag_config("title_font", font=('Arial', 11, 'bold'))
-
-            # Details
-            details = (
-                f"   - ID: {item_id}\n"
-                f"   - Provider: {row.get('provider', 'N/A')}\n"
-                f"   - Level: {row.get('level', 'N/A')}\n"
-                f"   - Rating: {row.get('adjusted_rating', 0):.2f} | Duration: {row.get('duration', 'N/A')}h\n"
+        print("\n--- Performing New Search ---")
+        print(f"Query: '{query}' | Liked Items: {len(self.session_history)} | Disliked Items: {len(self.disliked_history)}")
+        
+        try:
+            self.last_results = get_recommendations(
+                query_text=query,
+                level=self.level_var.get(),
+                skills=skills,
+                model_type=self.model_var.get(),
+                user_history=self.session_history if self.session_history else None,
+                disliked_history=self.disliked_history if self.disliked_history else None,
+                top_n=10
             )
-            self.results_text.insert(tk.END, details)
+            self.display_results()
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {e}")
+            print(f"ERROR: {e}")
 
-            # Scores
-            scores = []
-            for col, label in [('two_tower_score', 'Personalized'), ('sbert_score', 'Semantic'), ('combined_score', 'Hybrid')]:
-                if col in row and pd.notna(row[col]) and row[col] > 0:
-                    scores.append(f"{label}: {row[col]:.3f}")
-            if scores:
-                self.results_text.insert(tk.END, f"   - AI Scores: {' | '.join(scores)}\n")
+    def add_to_liked_history(self, item_id, title):
+        # If it's currently disliked, remove it from there first
+        if item_id in self.disliked_history:
+            self.disliked_history.remove(item_id)
+            self.update_listbox(self.disliked_listbox, self.disliked_history, "👎")
 
-            # URL
-            url = row.get('url')
-            if pd.notna(url):
-                url_tag = f"url-{item_id}"
-                self.results_text.insert(tk.END, f"   - URL: ", "link_label")
-                self.results_text.insert(tk.END, f"{url}\n", (url_tag, "link_url"))
-                self.results_text.tag_config(url_tag, foreground="darkgreen", underline=True)
-                self.results_text.tag_bind(url_tag, "<Button-1>", lambda e, link=url: webbrowser.open_new(link))
-            
-            self.results_text.insert(tk.END, "-"*90 + "\n\n")
+        # Add to liked history if it's not already there
+        if item_id not in self.session_history:
+            self.session_history.append(item_id)
+            self.update_listbox(self.liked_listbox, self.session_history, "👍")
+        else:
+            messagebox.showinfo("Info", "This course is already in your liked list.")
 
-        # The text area is made non-editable by the KeyPress binding, so we don't disable it,
-        # ensuring the clickable links remain active.
+    def add_to_disliked_history(self, item_id, title):
+        # If it's currently liked, remove it from there first
+        if item_id in self.session_history:
+            self.session_history.remove(item_id)
+            self.update_listbox(self.liked_listbox, self.session_history, "👍")
 
+        # Add to disliked history if it's not already there
+        if item_id not in self.disliked_history:
+            self.disliked_history.append(item_id)
+            self.update_listbox(self.disliked_listbox, self.disliked_history, "👎")
+        else:
+            messagebox.showinfo("Info", "This course is already in your disliked list.")
+
+    def clear_liked_history(self):
+        self.session_history.clear()
+        self.liked_listbox.delete(0, tk.END)
+
+    def clear_disliked_history(self):
+        self.disliked_history.clear()
+        self.disliked_listbox.delete(0, tk.END)
+
+    def update_listbox(self, listbox, history_list, prefix):
+        """Helper function to refresh a listbox based on its corresponding list."""
+        listbox.delete(0, tk.END)
+        # We need to get the titles from the main dataframe
+        if not history_list:
+            return
+        
+        history_df = df_all_courses[df_all_courses['item_id'].isin(history_list)]
+        # Create a map to preserve order
+        id_to_title_map = pd.Series(history_df.title.values,index=history_df.item_id).to_dict()
+
+        for item_id in history_list:
+            title = id_to_title_map.get(item_id, "Unknown Title")
+            listbox.insert(tk.END, f"{prefix} {title}")
+
+    def display_results(self):
+        self.results_text.config(state=tk.NORMAL)
+        self.results_text.delete(1.0, tk.END)
+        
+        if self.last_results.empty:
+            self.results_text.insert(tk.END, "No recommendations found.")
+            self.results_text.config(state=tk.DISABLED)
+            return
+
+        for i, row in self.last_results.iterrows():
+            item_id, title = row['item_id'], row['title']
+            self.results_text.insert(tk.END, f"📚 {title}\n", ("title",))
+            self.results_text.insert(tk.END, f"   Provider: {row.get('provider', 'N/A')} | Level: {row.get('level', 'N/A')}\n")
+            scores = [f"{lbl}: {row[col]:.3f}" for col, lbl in [('combined_score', 'Hybrid'), ('sbert_score', 'SBERT'), ('two_tower_score', 'Two-Tower'), ('tfidf_score', 'TF-IDF')] if col in row and pd.notna(row[col]) and row[col] > 0]
+            if scores: self.results_text.insert(tk.END, f"   🤖 AI Scores: {' | '.join(scores)}\n")
+
+            # --- Button Frame ---
+            button_frame = tk.Frame(self.results_text, bg=self.results_text.cget('bg'))
+            ttk.Button(button_frame, text="Like 👍", command=lambda i=item_id, t=title: self.add_to_liked_history(i, t)).pack(side=tk.LEFT, padx=5)
+            ttk.Button(button_frame, text="Dislike 👎", command=lambda i=item_id, t=title: self.add_to_disliked_history(i, t)).pack(side=tk.LEFT)
+            self.results_text.window_create(tk.END, window=button_frame)
+            self.results_text.insert(tk.END, "\n\n" + "-"*80 + "\n\n")
+
+        self.results_text.tag_config("title", font=('Arial', 11, 'bold'))
+        self.results_text.config(state=tk.DISABLED)
 
 def main():
+    root = tk.Tk()
+    # Apply a modern theme
+    style = ttk.Style(root)
     try:
-        root = tk.Tk()
-        app = InteractiveRecommenderGUI(root)
-        root.mainloop()
-    except Exception as e:
-        print(f"Failed to launch GUI: {e}")
-        messagebox.showerror("Application Error", f"A critical error occurred on startup:\n\n{e}\n\nPlease check the console for details.")
+        # 'clam' is a good cross-platform theme
+        style.theme_use('clam')
+    except tk.TclError:
+        print("Clam theme not available, using default.")
+    
+    app = InteractiveRecommenderGUI(root)
+    root.mainloop()
 
 if __name__ == "__main__":
-    print("Launching Interactive Recommender GUI...")
     main() 

@@ -1,5 +1,0 @@
-Model Performance Metrics:
-Training Time: 35.11 seconds
-Average Inference Time: 0.0150 seconds
-Final Training Loss: 23989.5098
-Final Validation Loss: 5585.9424
