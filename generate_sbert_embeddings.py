@@ -11,7 +11,8 @@ import torch # Import torch to check for GPU availability
 # --- Add Parent Directory for Package Import ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(SCRIPT_DIR)
-sys.path.append(PARENT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.append(PARENT_DIR)
 
 # Now import from the package
 import config, utils
@@ -29,19 +30,19 @@ def generate_embeddings():
     
     # 1. Load course data using the updated utils function
     print(f"Loading course data from: {config.COURSE_DATA_PATH}")
-    # utils.load_course_data now only keeps specified columns: title, descrition, skills, adjusted_rating, skills_list
+    # utils.load_course_data now only keeps specified columns: title, description, skills, adjusted_rating, skills_list
     courses_df = utils.load_course_data(config.COURSE_DATA_PATH)
     if courses_df is None or courses_df.empty:
         print("Failed to load course data or required columns missing. Aborting SBERT generation.")
         return
 
     # 2. Prepare text data for SBERT using ONLY the selected text columns
-    # User specified: Skills, title, descrition
-    print("Preparing text data using columns: title, description, skills")
+    # User specified: Skills, title, description
+    print("Preparing text data using columns: title, description, skills_list") # Changed 'skills' to 'skills_list'
     courses_df["processed_text"] = (
         courses_df["title"].fillna("") + ". " + # Add separator
-        courses_df["description"].fillna("") + ". " + # Use CORRECTED name, add separator
-        courses_df["skills"].apply(lambda x: " ".join(x) if isinstance(x, list) else "").fillna("") # Derived from 'Skills'
+        courses_df["description"].fillna("") + ". " + # Use CORRECTED name 'description', add separator
+        courses_df["skills_list"].apply(lambda x: " ".join(x) if isinstance(x, list) else "").fillna("") # Use 'skills_list'
     )
     # Handle potential empty strings after concatenation
     courses_df["processed_text"] = courses_df["processed_text"].apply(lambda x: x.strip() if x.strip() else "No content")
@@ -83,10 +84,10 @@ def generate_embeddings():
         pickle.dump(embeddings, f)
     print("Embeddings saved.")
 
-    # Save course IDs for mapping
+    # Save course IDs for mapping (CRITICAL FIX HERE)
     print(f"Saving course IDs to: {SBERT_COURSE_IDS_OUTPUT_PATH}")
     with open(SBERT_COURSE_IDS_OUTPUT_PATH, "wb") as f:
-        pickle.dump(courses_df.index.tolist(), f)
+        pickle.dump(courses_df['item_id'].tolist(), f) # <--- FIXED: Save actual item_ids, not index
     print("Course IDs saved.")
 
     # Update config paths (in memory for this run)
@@ -99,4 +100,3 @@ def generate_embeddings():
 
 if __name__ == "__main__":
     generate_embeddings()
-

@@ -93,7 +93,7 @@ def preprocess_text_tfidf(text):
 def load_course_data(file_path):
     """
     Loads the course data from a CSV file and performs basic cleaning,
-    focusing on the columns specified by the user: Skills, title, adjusted_rating, descrition.
+    focusing on the columns specified by the user: Skills, title, adjusted_rating, description.
 
     Args:
         file_path (str): The path to the course data CSV file.
@@ -106,13 +106,19 @@ def load_course_data(file_path):
         print(f"Successfully loaded course data from {file_path}. Shape: {df.shape}")
         print(f"Original columns: {df.columns.tolist()}")
         
+   
+        
         # Define the REQUIRED columns based on user clarification
-        # Using the LATEST corrected names: Skills, title, adjusted_rating, descrition
+        # Using the LATEST corrected names: Skills, title, adjusted_rating, description
+        # Include 'url' and 'level' here as well, if they are intended to be kept
         required_cols_map = {
-            "skills": "Skills", 
+            "item_id": "item_id",  # Add item_id to required columns
+            "skills": "skills", # Should be 'skills' from original data
             "title": "title", 
             "adjusted_rating": "adjusted_rating", 
-            "description": "description" # Using CORRECTED name 'descrition'
+            "description": "description", # Use CORRECTED name 'description'
+            "url": "url", # Added URL
+            "level": "level" # Added level
         }
         
         # Find actual column names (case-insensitive matching)
@@ -141,32 +147,84 @@ def load_course_data(file_path):
                 df[col] = None
                 print(f"Ensured standard column \t\t{col}\t\t exists (filled with None).")
 
-        # Clean specific columns
-        if "skills" in df.columns:
+        # --- CRITICAL FIX: Ensure item_id column matches the 'COURSE-XXX' format ---
+        # This conversion logic will ensure consistency if original item_ids are not in this format.
+        # Check if item_id column is numeric, or if it's object but not yet in COURSE- format.
+        if 'item_id' in df.columns:
+            # Check if item_id looks like a number that needs 'COURSE-' prefix
+            if df['item_id'].dtype in ['int64', 'float64'] or \
+               (df['item_id'].dtype == 'object' and df['item_id'].astype(str).str.isnumeric().any() and \
+                not df['item_id'].astype(str).str.contains('COURSE-', na=False).any()):
+                
+                print("Attempting to convert 'item_id' to 'COURSE-XXX' format if it appears numeric.")
+                # Convert to string and then prefix, handling potential floats/NaT
+                df['item_id'] = df['item_id'].apply(lambda x: f'COURSE-{int(x)}' if pd.notna(x) and str(x).replace('.', '').isdigit() else str(x))
+                print(f"Sample converted 'item_id' values: {df['item_id'].head().tolist()}")
+            else:
+                print("Item 'item_id' column already appears to be in 'COURSE-XXX' format or non-numeric. No conversion applied.")
+        else:
+            print("Warning: 'item_id' column not found in DataFrame. Cannot ensure consistent format.")
+
+
+        # Apply skills parsing (ensure 'skills_list' column is properly handled if it exists)
+        if "skills" in df.columns: # Original column name is 'skills'
             df["skills_list"] = df["skills"].apply(parse_skills)
+            print("Parsed 'skills' column into 'skills_list'.")
         else:
              df["skills_list"] = pd.Series([[] for _ in range(len(df))]) # Create empty list if skills column missing
+             print("No 'skills' column found. Created empty 'skills_list'.")
              
         # Ensure essential text columns are strings
         if "title" in df.columns:
             df["title"] = df["title"].fillna("").astype(str)
         if "description" in df.columns: # Use CORRECTED name
             df["description"] = df["description"].fillna("").astype(str)
+        if "description" in df.columns and "description" not in df.columns: # If 'description' exists but 'description' doesn't, use it.
+             df["description"] = df["description"].fillna("").astype(str)
+             print("Copied 'description' to 'description' for consistency.")
+        elif "description" not in df.columns:
+            df["description"] = "" # Ensure it's there even if original missing
+
+        # Ensure rating is numeric
+        if "adjusted_rating" in df.columns:
+            df["adjusted_rating"] = pd.to_numeric(df["adjusted_rating"], errors='coerce').fillna(0.0)
+        else:
+            df["adjusted_rating"] = 0.0 # Default if column missing
+
+        # Ensure url and level are strings
+        if "url" in df.columns:
+            df["url"] = df["url"].fillna("").astype(str)
+        else:
+            df["url"] = ""
+        if "level" in df.columns:
+            df["level"] = df["level"].fillna("").astype(str)
+        else:
+            df["level"] = ""
             
         print(f"Columns after loading and standardization: {df.columns.tolist()}")
         # Keep only the relevant columns + the derived skills_list
+        # Ensure all columns from required_cols_map are included, plus 'skills_list'
         final_cols_to_keep = list(required_cols_map.keys()) + ["skills_list"]
+        
         # Filter out any columns that weren't actually found or created
         final_cols_to_keep = [col for col in final_cols_to_keep if col in df.columns]
         
         print(f"Keeping columns: {final_cols_to_keep}")
+        # Reorder columns to ensure 'item_id' is first for consistency if needed later
+        if 'item_id' in final_cols_to_keep:
+            final_cols_to_keep.remove('item_id')
+            final_cols_to_keep.insert(0, 'item_id')
+        
+        print(f"Preprocessed courses_df head:\n{df[final_cols_to_keep].head()}")
         return df[final_cols_to_keep]
         
     except FileNotFoundError:
         print(f"Error: Course data file not found at {file_path}.")
         return None
     except Exception as e:
-        print(f"Error loading or processing course data from {file_path}: {e}")
+        print(f"An error occurred while loading/processing course data: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def parse_skills(skill_entry):
@@ -178,7 +236,7 @@ def parse_skills(skill_entry):
     if pd.isna(skill_entry):
         return []
     try:
-        # Handle stringified lists (e.g., "[		skill1		, 		skill2		]")
+        # Handle stringified lists (e.g., "[        skill1        ,         skill2        ]")
         if isinstance(skill_entry, str) and skill_entry.startswith("[") and skill_entry.endswith("]"):
             evaluated_list = ast.literal_eval(skill_entry)
             if isinstance(evaluated_list, list):
@@ -269,3 +327,36 @@ def filter_courses(df, level=None, providers=None, required_skills=None, duratio
 
     return filtered_df
 
+
+# --- Main execution block for utils.py (optional, for testing this file) ---
+if __name__ == "__main__":
+    # This block is for testing load_course_data independently
+    # Replace with the actual path to your original course data file
+    test_course_file = 'data/final(final).csv' # Or 'data/final(ready for model).csv'
+
+    # Create dummy data for testing if your file is not available
+    if not os.path.exists(test_course_file):
+        print(f"Test file '{test_course_file}' not found. Creating dummy course data for testing utils.py.")
+        dummy_data = {
+            'item_id': [1, 2, 3, 4],
+            'title': ['Course A', 'Course B', 'Course C', 'Course D'],
+            'description': ['Desc A', 'Desc B', 'Desc C', 'Desc D'],
+            'adjusted_rating': [4.0, 3.5, 4.2, 3.8],
+            'skills': ['["Python", "ML"]', '["SQL", "Databases"]', 'Data Science', '["Web Dev"]'],
+            'url': ['url_a', 'url_b', 'url_c', 'url_d'],
+            'level': ['Beginner', 'Intermediate', 'Advanced', 'Beginner']
+        }
+        pd.DataFrame(dummy_data).to_csv(test_course_file, index=False)
+        print("Dummy course data created.")
+
+    loaded_courses = load_course_data(test_course_file)
+    if loaded_courses is not None:
+        print("\nSuccessfully loaded and preprocessed course data:")
+        print(loaded_courses)
+        print("\nChecking item_id types and values:")
+        print(loaded_courses['item_id'].value_counts())
+        print("\nChecking skills_list types:")
+        print(loaded_courses['skills_list'].apply(type).value_counts())
+        print("\nSample skills_list content:")
+        for i in range(min(5, len(loaded_courses))):
+            print(f"Item {loaded_courses.iloc[i]['item_id']}: Skills: {loaded_courses.iloc[i]['skills_list']}")
