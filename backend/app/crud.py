@@ -30,6 +30,40 @@ def create_user(db: Session, user: schemas.UserCreate):
     return db_user
 
 # ====================
+# Student CRUD
+# ====================
+def get_student(db: Session, student_id: int):
+    return db.query(models.Student).filter(models.Student.id == student_id).first()
+
+def get_student_by_email(db: Session, email: str):
+    return db.query(models.Student).filter(models.Student.email == email).first()
+
+def get_students(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Student).offset(skip).limit(limit).all()
+
+def create_student(db: Session, student: schemas.StudentCreate):
+    hashed_password = pwd_context.hash(student.password)
+    db_student = models.Student(
+        email=student.email,
+        name=student.name,
+        hashed_password=hashed_password,
+    )
+    db.add(db_student)
+    db.commit()
+    db.refresh(db_student)
+    return db_student
+
+def create_student_profile(db: Session, student_id: int, profile: schemas.StudentProfileCreate):
+    db_profile = models.StudentProfile(
+        student_id=student_id,
+        **profile.dict()
+    )
+    db.add(db_profile)
+    db.commit()
+    db.refresh(db_profile)
+    return db_profile
+
+# ====================
 # Course CRUD
 # ====================
 def get_courses(db: Session, skip: int = 0, limit: int = 100):
@@ -40,4 +74,10 @@ def create_course(db: Session, course: schemas.CourseCreate):
     db.add(db_course)
     db.commit()
     db.refresh(db_course)
-    return db_course 
+    return db_course
+
+def get_internal_courses(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.InternalCourse).offset(skip).limit(limit).all()
+
+def get_external_courses(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.ExternalCourse).offset(skip).limit(limit).all() 

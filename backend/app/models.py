@@ -1,6 +1,5 @@
 import enum
 from sqlalchemy import (
-    create_engine,
     Column,
     Integer,
     String,
@@ -13,13 +12,23 @@ from sqlalchemy import (
     DateTime,
     JSON,
 )
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
-from .config import settings
 import datetime
 
 Base = declarative_base()
 
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String)
+    is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
+    is_student = Column(Boolean, default=True)
+    has_completed_onboarding = Column(Boolean, default=False)
 
 
 class Student(Base):
@@ -123,17 +132,4 @@ class RecommendationLog(Base):
     scores = Column(JSON)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
-    student = relationship("Student", back_populates="recommendations")
-
-
-# Database setup
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close() 
+    student = relationship("Student", back_populates="recommendations") 

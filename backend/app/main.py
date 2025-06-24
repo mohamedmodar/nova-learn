@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
 from . import models
+from .routers import auth, users, courses, students
 
 # This creates the tables in the database.
 # For production, you would use a migration tool like Alembic.
@@ -31,5 +32,11 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the NovaLearn API"}
+
+# Include routers
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(courses.router)
+app.include_router(students.router)
 
 # Here we will later include the routers for auth, users, courses etc. 
