@@ -38,7 +38,8 @@ ENV/
 training_history.pkl
 
 # Data files
-
+*.csv
+!requirements.txt
 
 # Logs
 *.log 
