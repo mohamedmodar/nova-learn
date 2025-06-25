@@ -4,6 +4,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
+import re
 
 # Get the absolute path to the project's root directory
 # This assumes the script is in 'backend/scripts/'
@@ -14,8 +15,21 @@ sys.path.insert(0, os.path.join(project_root, 'backend'))
 dotenv_path = os.path.join(project_root, 'backend', '.env')
 load_dotenv(dotenv_path=dotenv_path)
 
-from app.database import SessionLocal
-from app.models import InternalCourse, ExternalCourse
+from app.database import SessionLocal, engine
+from app.models import Base, ExternalCourse, InternalCourse
+
+# Define the path to the original CSV file
+SOURCE_CSV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'data', 'final(final).csv')
+INTERNAL_COURSES_CSV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'data', 'coursera_courses_cleaned.csv')
+
+def sanitize_id(item_id):
+    """
+    Removes problematic characters from an ID to make it database-safe.
+    This removes any character that is not a letter, number, hyphen, or underscore.
+    """
+    if not isinstance(item_id, str):
+        return item_id
+    return re.sub(r'[^a-zA-Z0-9_-]', '', item_id)
 
 def seed_internal_courses(db: Session):
     """Seeds internal courses from the CSV file."""
@@ -45,27 +59,31 @@ def seed_internal_courses(db: Session):
 def seed_external_courses(db: Session):
     """Seeds external courses from the CSV file."""
     print("\nSeeding external courses...")
-    external_courses_path = os.path.join(project_root, 'model', 'data', 'final(final).csv')
     try:
-        df = pd.read_csv(external_courses_path)
+        if not os.path.exists(SOURCE_CSV_PATH):
+            print(f"Error: Source data file not found at {SOURCE_CSV_PATH}")
+            return
 
-        # Rename columns to match the model attributes
-        df.rename(columns={
-            'item_id': 'item_id',
-            'title': 'title',
-            'description': 'description',
-            'level': 'level',
-            'duration_in_seconds': 'duration',
-            'rating': 'rating',
-            'reviews': 'num_reviews',
-            'skills': 'skills',
-            'url': 'url',
-            'provider': 'provider',
-            'adjusted_rating': 'adjusted_rating'
-        }, inplace=True)
+        df = pd.read_csv(SOURCE_CSV_PATH)
+        
+        # --- Automatic Data Cleaning ---
+        if 'item_id' in df.columns:
+            print("Sanitizing course IDs for database seeding...")
+            df['item_id'] = df['item_id'].apply(sanitize_id)
+            print("Sanitizing complete.")
+        # -----------------------------
+        
+        # Ensure 'item_id' is treated as a string
+        df['item_id'] = df['item_id'].astype(str)
+        
+        # Select and rename columns to match the ExternalCourse model
+        df_for_db = df[['item_id', 'title', 'description', 'level', 'duration', 'rating', 'num_reviews', 'adjusted_rating', 'skills', 'url', 'provider']].copy()
 
+        print(f"Seeding {len(df_for_db)} external courses...")
+
+        # Convert DataFrame to list of dictionaries and insert
         successful_seeds = 0
-        for index, row in df.iterrows():
+        for index, row in df_for_db.iterrows():
             try:
                 # Clean up skills data: NaN is not valid JSON. Replace with None (null in DB).
                 skills_data = row.get('skills')
@@ -95,24 +113,34 @@ def seed_external_courses(db: Session):
                 continue
 
         db.commit()
-        print(f"Successfully seeded {successful_seeds} of {len(df)} external courses.")
+        print(f"Successfully seeded {successful_seeds} of {len(df_for_db)} external courses.")
     except FileNotFoundError:
-        print(f"Error: Could not find external courses file at {external_courses_path}")
+        print(f"Error: Could not find external courses file at {SOURCE_CSV_PATH}")
     except Exception as e:
         db.rollback()
         print(f"An error occurred during the seeding transaction: {e}")
 
-if __name__ == "__main__":
+def main():
+    """
+    Main function to orchestrate the database seeding.
+    This will drop all existing tables and recreate them with the
+    latest schema before seeding.
+    """
+    print("Initializing database...")
+    
+    print("--> Dropping all existing tables...")
+    Base.metadata.drop_all(bind=engine)
+    print("--> Creating all tables with the new schema...")
+    Base.metadata.create_all(bind=engine)
+    
     db = SessionLocal()
     try:
-        # Clear existing data to avoid duplicates
-        print("Clearing existing course data...")
-        db.query(InternalCourse).delete()
-        db.query(ExternalCourse).delete()
-        db.commit()
-
+        # The seeder no longer needs to clear data, as the tables are fresh
         seed_internal_courses(db)
         seed_external_courses(db)
     finally:
         db.close()
-        print("\nSeeding complete. Database connection closed.")
+    print("\nDatabase initialization complete.")
+
+if __name__ == "__main__":
+    main()

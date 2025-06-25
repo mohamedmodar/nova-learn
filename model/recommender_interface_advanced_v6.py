@@ -7,17 +7,31 @@ import torch
 import tensorflow as tf
 from sentence_transformers import SentenceTransformer, util
 import re
+import os
 
-# --- Import components from other scripts ---
-from sbert_recommender_component import sbert_model as loaded_sbert_model, course_embeddings_tensor as loaded_sbert_course_embeddings
+# --- Get the absolute path of the directory containing this script ---
+MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# --- DEPRECATING component import ---
+# from sbert_recommender_component import sbert_model as loaded_sbert_model, course_embeddings_tensor as loaded_sbert_course_embeddings
 from adapted_two_tower_model import CourseRecommender
 
 # --- Configuration ---
-TFIDF_VECTORIZER_PATH = "models/tfidf_vectorizer.pkl"
-TFIDF_MATRIX_PATH = "models/tfidf_matrix.pkl"
-COURSE_DATA_PATH = "data/final(final).csv"
-SBERT_COURSE_EMBEDDINGS_FOR_TT_PATH = "models/course_sbert_embeddings.pkl"
-TWO_TOWER_MODEL_PATH = 'models/two_tower_content_based.weights.h5'
+TFIDF_VECTORIZER_PATH = os.path.join(MODEL_DIR, "models/tfidf_vectorizer.pkl")
+TFIDF_MATRIX_PATH = os.path.join(MODEL_DIR, "models/tfidf_matrix.pkl")
+COURSE_DATA_PATH = os.path.join(MODEL_DIR, "data/final(final).csv")
+# This is the single source of truth for our course embeddings
+SBERT_EMBEDDINGS_PATH = os.path.join(MODEL_DIR, "models/course_sbert_embeddings.pkl")
+TWO_TOWER_MODEL_PATH = os.path.join(MODEL_DIR, 'models/two_tower_content_based.weights.h5')
+
+def sanitize_id(item_id):
+    """
+    Removes problematic characters from an ID to make it database-safe.
+    This removes any character that is not a letter, number, hyphen, or underscore.
+    """
+    if not isinstance(item_id, str):
+        return item_id
+    return re.sub(r'[^a-zA-Z0-9_-]', '', item_id)
 
 # --- Global Variables / Load Models ---
 print("Loading TF-IDF components...")
@@ -34,6 +48,14 @@ except Exception as e:
 print("Loading main course data...")
 try:
     df_all_courses = pd.read_csv(COURSE_DATA_PATH)
+    
+    # --- Automatic Data Cleaning ---
+    if 'item_id' in df_all_courses.columns:
+        print("Sanitizing course IDs for the model...")
+        df_all_courses['item_id'] = df_all_courses['item_id'].apply(sanitize_id)
+        print("Sanitizing complete.")
+    # -----------------------------
+
     if "skills" in df_all_courses.columns:
         df_all_courses["skills_list"] = df_all_courses["skills"].apply(
             lambda x: [s.strip().strip("'") for s in str(x).split(',')] if pd.notna(x) else []
@@ -54,32 +76,36 @@ except Exception as e:
     print(f"FATAL: Could not load main course data from {COURSE_DATA_PATH}: {e}")
     df_all_courses = None
 
-print("\nLoading SBERT embeddings for Two-Tower model...")
+# --- NEW: Consolidated SBERT and Two-Tower Loading ---
+print("\nLoading SBERT model and embeddings...")
+sbert_model = None
+sbert_course_embeddings = None # This will be our PyTorch Tensor
+two_tower_recommender = None
 try:
-    with open(SBERT_COURSE_EMBEDDINGS_FOR_TT_PATH, "rb") as f:
-        all_item_sbert_embeddings = pickle.load(f)
-    all_item_sbert_embeddings_tensor_for_tt = tf.convert_to_tensor(all_item_sbert_embeddings, dtype=tf.float32)
-    print("SBERT embeddings loaded successfully.")
-except Exception as e:
-    print(f"FATAL: Could not load SBERT embeddings from {SBERT_COURSE_EMBEDDINGS_FOR_TT_PATH}: {e}")
-    all_item_sbert_embeddings_tensor_for_tt = None
+    sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+    
+    # Load the embeddings from pickle file
+    with open(SBERT_EMBEDDINGS_PATH, "rb") as f:
+        embeddings_np = pickle.load(f) # Assuming it's a numpy array
+    
+    # Convert to PyTorch tensor for SBERT functions
+    sbert_course_embeddings = torch.tensor(embeddings_np, dtype=torch.float32)
+    print("SBERT model and embeddings loaded successfully.")
 
-# --- Initialize SBERT model for query encoding ---
-sbert_model_for_query = SentenceTransformer('all-MiniLM-L6-v2')
-
-# --- Initialize the Main Two-Tower Recommender Class ---
-print("\nInitializing the main Course Recommender for Two-Tower model...")
-if df_all_courses is not None and all_item_sbert_embeddings_tensor_for_tt is not None:
-    main_recommender = CourseRecommender(
+    print("\nInitializing the main Course Recommender for Two-Tower model...")
+    # Convert to TensorFlow tensor for Two-Tower model
+    all_item_sbert_embeddings_tensor_for_tt = tf.convert_to_tensor(embeddings_np, dtype=tf.float32)
+    two_tower_recommender = CourseRecommender(
         courses_df=df_all_courses,
         course_sbert_embeddings=all_item_sbert_embeddings_tensor_for_tt,
         model_path=TWO_TOWER_MODEL_PATH
     )
-    if main_recommender.item_embeddings_norm is None:
+    if two_tower_recommender.item_embeddings_norm is None:
         print("WARNING: Two-Tower model weights could not be loaded. Two-Tower and Hybrid models will not work.")
-else:
-    main_recommender = None
-    print("WARNING: Two-Tower recommender could not be initialized.")
+    
+except Exception as e:
+    print(f"FATAL: Could not load SBERT or Two-Tower components: {e}")
+    # Models will remain None if loading fails
 
 # --- Text Preprocessing for TF-IDF ---
 from nltk.stem import PorterStemmer
@@ -114,18 +140,18 @@ def _get_tfidf_recs(query, candidate_df, top_n=10, threshold=0.0):
     return recs.sort_values(by='tfidf_score', ascending=False).head(top_n)
 
 def _get_sbert_recs(candidate_df, top_n=10, query=None, intent_vector=None):
-    if loaded_sbert_model is None or loaded_sbert_course_embeddings is None: return pd.DataFrame()
+    if sbert_model is None or sbert_course_embeddings is None: return pd.DataFrame()
     if candidate_df.empty: return pd.DataFrame()
 
     if intent_vector is not None:
         query_embedding = intent_vector
     elif query:
-        query_embedding = loaded_sbert_model.encode(query, convert_to_tensor=True)
+        query_embedding = sbert_model.encode(query, convert_to_tensor=True)
     else:
         return pd.DataFrame() # Cannot search without a query or vector
 
     candidate_indices = candidate_df.index.tolist()
-    candidate_embeddings = torch.index_select(loaded_sbert_course_embeddings, 0, torch.tensor(candidate_indices, dtype=torch.long))
+    candidate_embeddings = torch.index_select(sbert_course_embeddings, 0, torch.tensor(candidate_indices, dtype=torch.long))
 
     cosine_scores = util.cos_sim(query_embedding, candidate_embeddings)[0]
 
@@ -134,22 +160,22 @@ def _get_sbert_recs(candidate_df, top_n=10, query=None, intent_vector=None):
     return recs.sort_values(by='sbert_score', ascending=False).head(top_n)
 
 def _get_two_tower_recs(candidate_df, top_n=10, query=None, intent_vector=None):
-    if main_recommender is None or main_recommender.item_embeddings_norm is None: return pd.DataFrame()
+    if two_tower_recommender is None or two_tower_recommender.item_embeddings_norm is None: return pd.DataFrame()
     
     if intent_vector is not None:
         # Convert PyTorch intent_vector to TensorFlow tensor
         query_embedding_tf = tf.expand_dims(tf.convert_to_tensor(intent_vector.cpu().numpy()), axis=0)
     elif query:
         # Fallback to encoding the raw query text
-        query_embedding = sbert_model_for_query.encode(query, convert_to_tensor=True)
+        query_embedding = sbert_model.encode(query, convert_to_tensor=True)
         query_embedding_tf = tf.expand_dims(tf.convert_to_tensor(query_embedding.numpy()), axis=0)
     else:
         return pd.DataFrame() # Cannot search
 
-    user_vector = main_recommender.model.query_tower(query_embedding_tf)
+    user_vector = two_tower_recommender.model.query_tower(query_embedding_tf)
     user_vector_norm = tf.nn.l2_normalize(user_vector, axis=-1)
     
-    similarity_scores = tf.matmul(user_vector_norm, main_recommender.item_embeddings_norm, transpose_b=True)
+    similarity_scores = tf.matmul(user_vector_norm, two_tower_recommender.item_embeddings_norm, transpose_b=True)
     similarity_scores = tf.squeeze(similarity_scores, axis=0).numpy()
 
     candidate_indices = candidate_df.index.tolist()
@@ -200,15 +226,26 @@ def get_recommendations(
     top_n=10, user_history=None, disliked_history=None, model_type='hybrid', duration_pref=None,
     candidate_threshold=0.1
 ):
-    if df_all_courses is None: return pd.DataFrame()
+    print("\n--- [MODEL] Inside get_recommendations ---")
+    print(f"[MODEL] Received query: '{query_text}', level: '{level}', skills: {skills}")
+    print(f"[MODEL] Received providers: {providers}, top_n: {top_n}, model: '{model_type}'")
+
+    if df_all_courses is None: 
+        print("[MODEL] df_all_courses is None. Returning empty DataFrame.")
+        return pd.DataFrame()
 
     # 1. Initial Filtering based on structured criteria (level, skills, etc.)
     filtered_df = filter_courses(df_all_courses, level, providers, skills, duration_pref)
+    print(f"[MODEL] Found {len(filtered_df)} courses after initial structured filtering.")
     
     if disliked_history:
+        original_count = len(filtered_df)
         filtered_df = filtered_df[~filtered_df['item_id'].isin(disliked_history)]
+        print(f"[MODEL] Removed {original_count - len(filtered_df)} disliked courses. {len(filtered_df)} remain.")
 
-    if filtered_df.empty: return pd.DataFrame()
+    if filtered_df.empty: 
+        print("[MODEL] No courses remain after filtering. Returning empty DataFrame.")
+        return pd.DataFrame()
 
     final_query_text = query_text.strip() if query_text else ""
     
@@ -242,6 +279,22 @@ def get_recommendations(
 
     # Stage 2: Re-rank the relevant candidates using personalized semantic models
     
+    # --- FIXED: Intent Vector Creation ---
+    user_intent_vector = None
+    if user_history:
+        print(f"[MODEL] Creating intent vector from {len(user_history)} liked courses.")
+        liked_indices = df_all_courses[df_all_courses['item_id'].isin(user_history)].index.tolist()
+        
+        if liked_indices and sbert_course_embeddings is not None:
+            # Select the embeddings for the liked items using the loaded PyTorch tensor
+            liked_embeddings = torch.index_select(sbert_course_embeddings, 0, torch.tensor(liked_indices, dtype=torch.long))
+            
+            if liked_embeddings.shape[0] > 0:
+                user_intent_vector = torch.mean(liked_embeddings, dim=0, keepdim=True)
+                print("[MODEL] Intent vector created successfully.")
+        else:
+            print("[MODEL] Liked courses not found or SBERT embeddings not available.")
+
     # Create a personalized keyword query for the TF-IDF re-ranking score in the hybrid model
     personalized_keyword_query = final_query_text
     if user_history:
@@ -256,10 +309,10 @@ def get_recommendations(
         if user_history:
             liked_indices = df_all_courses[df_all_courses['item_id'].isin(user_history)].index.tolist()
             if liked_indices:
-                liked_embeddings = torch.index_select(loaded_sbert_course_embeddings, 0, torch.tensor(liked_indices, dtype=torch.long))
+                liked_embeddings = torch.index_select(sbert_course_embeddings, 0, torch.tensor(liked_indices, dtype=torch.long))
                 positive_embeddings_list.append(liked_embeddings)
         if final_query_text:
-            query_embedding = loaded_sbert_model.encode(final_query_text, convert_to_tensor=True)
+            query_embedding = sbert_model.encode(final_query_text, convert_to_tensor=True)
             positive_embeddings_list.append(query_embedding.unsqueeze(0)); positive_embeddings_list.append(query_embedding.unsqueeze(0))
 
         if positive_embeddings_list:
@@ -268,7 +321,7 @@ def get_recommendations(
             if disliked_history:
                 disliked_indices = df_all_courses[df_all_courses['item_id'].isin(disliked_history)].index.tolist()
                 if disliked_indices:
-                    disliked_embeddings = torch.index_select(loaded_sbert_course_embeddings, 0, torch.tensor(disliked_indices, dtype=torch.long))
+                    disliked_embeddings = torch.index_select(sbert_course_embeddings, 0, torch.tensor(disliked_indices, dtype=torch.long))
                     negative_vector = torch.mean(disliked_embeddings, dim=0)
                     intent_vector = intent_vector - negative_vector
 
@@ -296,37 +349,44 @@ def get_hybrid_recommendations_advanced(*args, **kwargs):
 
 # --- Helper Functions ---
 def filter_courses(df, level=None, providers=None, skills=None, duration_pref=None):
-    """Basic filtering for courses."""
-    if df is None: return pd.DataFrame()
-    filtered_df = df.copy()
-    if level and level.lower() != "all levels":
-        filtered_df = filtered_df[filtered_df["level"].str.contains(level, case=False, na=False)]
-    if providers and isinstance(providers, list) and len(providers) > 0:
-        filtered_df = filtered_df[filtered_df["provider"].isin(providers)]
-    if skills and isinstance(skills, list) and len(skills) > 0:
-        skills_lower = [s.lower().strip() for s in skills]
-        def has_required_skills(course_skills):
-            if not isinstance(course_skills, list): return False
-            course_skills_lower = [s.lower().strip() for s in course_skills]
-            return any(req_skill in course_skills_lower for req_skill in skills_lower)
-        filtered_df = filtered_df[filtered_df["skills_list"].apply(has_required_skills)]
-    
-    if duration_pref and duration_pref != "any":
-        if "duration" in filtered_df.columns:
-            # Ensure duration is numeric, coercing errors
-            filtered_df["duration_numeric"] = pd.to_numeric(filtered_df["duration"], errors="coerce")
-            
-            if duration_pref == "short": # <= 10 hours
-                filtered_df = filtered_df[filtered_df["duration_numeric"] <= 10]
-            elif duration_pref == "medium": # 11-50 hours
-                filtered_df = filtered_df[(filtered_df["duration_numeric"] > 10) & (filtered_df["duration_numeric"] <= 50)]
-            elif duration_pref == "long": # > 50 hours
-                filtered_df = filtered_df[filtered_df["duration_numeric"] > 50]
-            
-            # Drop the temporary numeric column
-            filtered_df = filtered_df.drop(columns=["duration_numeric"])
+    if df is None or df.empty:
+        return pd.DataFrame()
 
-    return filtered_df
+    filtered = df.copy()
+    print(f"\n[MODEL-FILTER] Starting with {len(filtered)} total courses.")
+
+    # Filter by level
+    if level and "level" in filtered.columns:
+        original_count = len(filtered)
+        filtered = filtered[filtered["level"].str.contains(level, case=False, na=False)]
+        print(f"[MODEL-FILTER] After level='{level}', {len(filtered)} courses remain (removed {original_count - len(filtered)}).")
+
+    # Filter by provider (now case-insensitive)
+    if providers and "provider" in filtered.columns:
+        original_count = len(filtered)
+        # Create a lowercase version of the providers list for matching
+        providers_lower = [p.lower() for p in providers]
+        filtered = filtered[filtered["provider"].str.lower().isin(providers_lower)]
+        print(f"[MODEL-FILTER] After providers={providers} (case-insensitive), {len(filtered)} courses remain (removed {original_count - len(filtered)}).")
+
+    # Filter by skills (now checks for ANY of the skills - OR logic)
+    if skills and "skills_list" in filtered.columns:
+        original_count = len(filtered)
+        def has_any_required_skills(course_skills):
+            if not isinstance(course_skills, list):
+                return False
+            # Make skill comparison case-insensitive
+            course_skills_lower = {s.lower() for s in course_skills}
+            required_skills_lower = {s.lower() for s in skills}
+            # Return True if there is any intersection between the two sets
+            return not course_skills_lower.isdisjoint(required_skills_lower)
+
+        filtered = filtered[filtered["skills_list"].apply(has_any_required_skills)]
+        print(f"[MODEL-FILTER] After skills={skills} (OR logic), {len(filtered)} courses remain (removed {original_count - len(filtered)}).")
+
+    # TODO: Add filtering by duration preference
+    print("[MODEL-FILTER] Filtering complete.\n")
+    return filtered
 
 # --- Example Usage ---
 if __name__ == "__main__":

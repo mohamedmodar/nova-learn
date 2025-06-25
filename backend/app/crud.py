@@ -79,5 +79,28 @@ def create_course(db: Session, course: schemas.CourseCreate):
 def get_internal_courses(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.InternalCourse).offset(skip).limit(limit).all()
 
+def get_external_course_by_id(db: Session, course_id: str):
+    return db.query(models.ExternalCourse).filter(models.ExternalCourse.item_id == course_id).first()
+
+def get_internal_course_by_id(db: Session, course_id: int):
+    return db.query(models.InternalCourse).filter(models.InternalCourse.id == course_id).first()
+
 def get_external_courses(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.ExternalCourse).offset(skip).limit(limit).all() 
+    return db.query(models.ExternalCourse).offset(skip).limit(limit).all()
+
+def get_student_interactions(db: Session, student_id: int):
+    return db.query(models.StudentCourseInteraction).filter(models.StudentCourseInteraction.student_id == student_id).all()
+
+def get_courses_by_ids(db: Session, course_ids: list[str]):
+    # This assumes course_ids are for external courses for now
+    return db.query(models.ExternalCourse).filter(models.ExternalCourse.item_id.in_(course_ids)).all()
+
+def create_student_course_interaction(db: Session, student_id: int, interaction: schemas.StudentCourseInteractionCreate):
+    db_interaction = models.StudentCourseInteraction(
+        **interaction.dict(),
+        student_id=student_id
+    )
+    db.add(db_interaction)
+    db.commit()
+    db.refresh(db_interaction)
+    return db_interaction 

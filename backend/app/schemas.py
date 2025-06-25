@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 from datetime import datetime
 
 # ====================
@@ -120,23 +120,6 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 # ====================
-# Student Schemas
-# ====================
-class StudentBase(BaseModel):
-    email: EmailStr
-    name: Optional[str] = None
-
-class StudentCreate(StudentBase):
-    password: str
-
-class Student(StudentBase):
-    id: int
-    registration_date: datetime
-
-    class Config:
-        from_attributes = True
-
-# ====================
 # Student Profile Schemas
 # ====================
 class StudentProfileBase(BaseModel):
@@ -163,7 +146,25 @@ class StudentProfile(StudentProfileBase):
     timestamp: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
+# ====================
+# Student Schemas
+# ====================
+class StudentBase(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+
+class StudentCreate(StudentBase):
+    password: str
+
+class Student(StudentBase):
+    id: int
+    profile: Optional[StudentProfile] = None
+    registration_date: datetime
+
+    class Config:
+        orm_mode = True
 
 # ====================
 # External Course Schemas
@@ -211,9 +212,16 @@ class InternalCourse(InternalCourseBase):
 # ====================
 # Interaction Schemas
 # ====================
+# New schema for the simplified API request
+class InteractionCreate(BaseModel):
+    course_id: Union[str, int]
+    interaction_type: str
+    value: Optional[float] = None
+
 class StudentCourseInteractionBase(BaseModel):
     course_type: str
-    course_id: int
+    # Allow either str or int from the database model in the response
+    course_id: Union[str, int]
     interaction_type: str
     value: Optional[float] = None
 
@@ -254,6 +262,15 @@ class StudentInternalCourseProgress(StudentInternalCourseProgressBase):
 # ====================
 # Recommendation Schemas
 # ====================
+class RecommendationRequest(BaseModel):
+    query_text: Optional[str] = None
+    level: Optional[str] = None
+    skills: Optional[List[str]] = []
+    providers: Optional[List[str]] = []
+    top_n: Optional[int] = 10
+    model_type: Optional[str] = 'hybrid'
+    duration_pref: Optional[str] = None
+
 class RecommendationLogBase(BaseModel):
     recommended_courses: Any
     recommendation_type: str

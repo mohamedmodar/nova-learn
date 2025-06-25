@@ -100,7 +100,7 @@ class StudentCourseInteraction(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
     course_type = Column(String)  # "external" or "internal"
-    course_id = Column(Integer, nullable=False)
+    course_id = Column(String, nullable=False)
     interaction_type = Column(String)
     value = Column(Float)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
