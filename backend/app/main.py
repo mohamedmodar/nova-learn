@@ -5,7 +5,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
 from . import models
-from .routers import auth, users, courses, students, recommendations, interactions
+from .routers import (
+    auth, 
+    users, 
+    students, 
+    courses, 
+    recommendations, 
+    interactions,
+    enrollments,
+    search,
+    chatbot
+)
 
 # Add the model directory to the Python path
 # This is a simple way to make the model code importable
@@ -68,9 +78,12 @@ def read_root():
 # Include routers
 app.include_router(auth.router)
 app.include_router(users.router)
-app.include_router(courses.router)
 app.include_router(students.router)
+app.include_router(courses.router)
 app.include_router(recommendations.router)
 app.include_router(interactions.router)
+app.include_router(enrollments.router)
+app.include_router(search.router)
+app.include_router(chatbot.router)
 
 # Here we will later include the routers for auth, users, courses etc. 

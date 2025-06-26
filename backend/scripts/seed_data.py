@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
 import re
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql import text
 
 # Get the absolute path to the project's root directory
 # This assumes the script is in 'backend/scripts/'
@@ -16,7 +18,8 @@ dotenv_path = os.path.join(project_root, 'backend', '.env')
 load_dotenv(dotenv_path=dotenv_path)
 
 from app.database import SessionLocal, engine
-from app.models import Base, ExternalCourse, InternalCourse
+from app.models import Base, ExternalCourse, InternalCourse, Student, StudentProfile, Enrollment
+from app.security import get_password_hash
 
 # Define the path to the original CSV file
 SOURCE_CSV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'data', 'final(final).csv')
@@ -120,17 +123,103 @@ def seed_external_courses(db: Session):
         db.rollback()
         print(f"An error occurred during the seeding transaction: {e}")
 
+def seed_students(db: Session):
+    """Seeds a few sample students."""
+    print("\nSeeding sample students...")
+    students_to_create = [
+        {"email": "test.student1@example.com", "password": "password123", "full_name": "Alex Smith"},
+        {"email": "test.student2@example.com", "password": "password456", "full_name": "Taylor Jones"},
+    ]
+    
+    created_students = []
+    for student_data in students_to_create:
+        try:
+            hashed_password = get_password_hash(student_data["password"])
+            db_student = Student(
+                email=student_data["email"], 
+                hashed_password=hashed_password,
+                full_name=student_data["full_name"]
+            )
+            db.add(db_student)
+            db.commit()
+            db.refresh(db_student)
+            created_students.append(db_student)
+            print(f"  - Created student: {db_student.email}")
+        except IntegrityError:
+            db.rollback()
+            print(f"  - Student {student_data['email']} already exists. Fetching.")
+            existing_student = db.query(Student).filter(Student.email == student_data['email']).first()
+            if existing_student:
+                created_students.append(existing_student)
+
+    # Also create a profile for the first student
+    if created_students:
+        alex = created_students[0]
+        alex_profile = db.query(StudentProfile).filter(StudentProfile.student_id == alex.id).first()
+        if not alex_profile:
+            profile = StudentProfile(
+                student_id=alex.id,
+                learning_goals="Learn data science and web development",
+                technical_skills=["Python", "SQL", "React"],
+                learning_format_preference="visual"
+            )
+            db.add(profile)
+            db.commit()
+            print(f"  - Created profile for {alex.email}")
+            
+    return created_students
+
+def seed_enrollments(db: Session):
+    """Seeds some sample enrollments for the test students."""
+    print("\nSeeding sample enrollments...")
+    
+    # Get the students
+    student1 = db.query(Student).filter(Student.email == "test.student1@example.com").first()
+    
+    if not student1:
+        print("Could not find sample students to create enrollments for.")
+        return
+
+    # Get a few external courses to enroll them in
+    courses_to_enroll = db.query(ExternalCourse).limit(5).all()
+    if not courses_to_enroll:
+        print("Could not find any external courses to create enrollments for.")
+        return
+
+    # Enroll student1 in a couple of courses with some progress
+    try:
+        if len(courses_to_enroll) > 0:
+            enrollment1 = Enrollment(student_id=student1.id, course_id=courses_to_enroll[0].item_id, course_type='external', progress=25, status='in_progress')
+            db.add(enrollment1)
+        
+        if len(courses_to_enroll) > 1:
+            enrollment2 = Enrollment(student_id=student1.id, course_id=courses_to_enroll[1].item_id, course_type='external', progress=50, status='in_progress')
+            db.add(enrollment2)
+            
+        db.commit()
+        print(f"Successfully created enrollments for {student1.email}.")
+    except Exception as e:
+        db.rollback()
+        print(f"An error occurred while seeding enrollments: {e}")
+
 def main():
-    """
-    Main function to orchestrate the database seeding.
-    This will drop all existing tables and recreate them with the
-    latest schema before seeding.
-    """
+    """Main function to seed the database."""
     print("Initializing database...")
     
-    print("--> Dropping all existing tables...")
+    # Drop tables with CASCADE for PostgreSQL to handle dependencies
+    with engine.connect() as connection:
+        with connection.begin():
+            print("--> Dropping dependent tables with CASCADE...")
+            # We drop tables that are known to cause dependency issues first
+            connection.execute(text("DROP TABLE IF EXISTS enrollments CASCADE"))
+            connection.execute(text("DROP TABLE IF EXISTS student_course_interactions CASCADE"))
+            connection.execute(text("DROP TABLE IF EXISTS students CASCADE"))
+
+    print("--> Dropping all remaining tables...")
+    # The standard drop_all might still be useful for other tables
     Base.metadata.drop_all(bind=engine)
-    print("--> Creating all tables with the new schema...")
+
+    print("--> Creating all tables...")
     Base.metadata.create_all(bind=engine)
     
     db = SessionLocal()
@@ -138,6 +227,8 @@ def main():
         # The seeder no longer needs to clear data, as the tables are fresh
         seed_internal_courses(db)
         seed_external_courses(db)
+        seed_students(db)
+        seed_enrollments(db)
     finally:
         db.close()
     print("\nDatabase initialization complete.")

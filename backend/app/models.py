@@ -36,9 +36,10 @@ class Student(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    name = Column(String)
+    full_name = Column(String, index=True)
     registration_date = Column(DateTime, default=datetime.datetime.utcnow)
 
+    enrollments = relationship("Enrollment", back_populates="student")
     profile = relationship("StudentProfile", back_populates="student", uselist=False)
     interactions = relationship("StudentCourseInteraction", back_populates="student")
     internal_course_progress = relationship(
@@ -99,13 +100,30 @@ class StudentCourseInteraction(Base):
     __tablename__ = "student_course_interactions"
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
-    course_type = Column(String)  # "external" or "internal"
-    course_id = Column(String, nullable=False)
-    interaction_type = Column(String)
-    value = Column(Float)
+    
+    # An interaction can be with a course OR about a topic
+    course_id = Column(String, nullable=True) 
+    course_type = Column(String, nullable=True) # 'external' or 'internal'
+    topic = Column(String, index=True, nullable=True) # The learned topic, e.g., from search or chat
+
+    interaction_type = Column(String, nullable=False) # 'like', 'dislike', 'search', 'chat_topic'
+    value = Column(Float, nullable=True)  # For ratings, etc.
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
     student = relationship("Student", back_populates="interactions")
+
+
+class Enrollment(Base):
+    __tablename__ = "enrollments"
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    course_id = Column(String, nullable=False)
+    course_type = Column(String, nullable=False) # "external" or "internal"
+    enrollment_date = Column(DateTime, default=datetime.datetime.utcnow)
+    status = Column(String, default="in_progress") # e.g., "in_progress", "completed"
+    progress = Column(Integer, default=0) # e.g., a percentage from 0 to 100
+
+    student = relationship("Student", back_populates="enrollments")
 
 
 class StudentInternalCourseProgress(Base):

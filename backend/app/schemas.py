@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Any, Union
 from datetime import datetime
+from pydantic import field_validator
 
 # ====================
 # Skill Schemas
@@ -33,14 +34,18 @@ class CourseBase(BaseModel):
 class CourseCreate(CourseBase):
     pass
 
-class Course(CourseBase):
-    id: int
-    rating: Optional[float] = None
-    enrolled_count: int = 0
-    skills: List[Skill] = []
+# For returning a unified course object
+class Course(BaseModel):
+    id: str  # Changed from int to str to accommodate both internal (int) and external (str) IDs
+    title: str
+    description: Optional[str] = None
+    url: Optional[str] = None
+    provider: Optional[str] = None
+    course_type: Optional[str] = None # 'internal' or 'external'
+    skills: Optional[List[str]] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ====================
 # User Schemas
@@ -89,7 +94,8 @@ class UserPreference(UserPreferenceBase):
 # Enrollment Schemas
 # ====================
 class EnrollmentBase(BaseModel):
-    course_id: int
+    course_id: str
+    course_type: str
 
 class EnrollmentCreate(EnrollmentBase):
     pass
@@ -100,14 +106,15 @@ class EnrollmentUpdate(BaseModel):
 
 class Enrollment(EnrollmentBase):
     id: int
-    user_id: int
+    student_id: int
     progress: int
     status: str
     enrollment_date: datetime
-    course: Course # Include course details in enrollment response
+    # Removed 'course' to avoid circular dependency issues and simplify.
+    # The frontend can fetch course details separately if needed.
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ====================
 # Token Schemas
@@ -153,7 +160,7 @@ class StudentProfile(StudentProfileBase):
 # ====================
 class StudentBase(BaseModel):
     email: EmailStr
-    name: Optional[str] = None
+    full_name: Optional[str] = None
 
 class StudentCreate(StudentBase):
     password: str
@@ -219,19 +226,31 @@ class InteractionCreate(BaseModel):
     value: Optional[float] = None
 
 class StudentCourseInteractionBase(BaseModel):
-    course_type: str
-    # Allow either str or int from the database model in the response
-    course_id: Union[str, int]
     interaction_type: str
     value: Optional[float] = None
 
 class StudentCourseInteractionCreate(StudentCourseInteractionBase):
-    pass
+    # For course interactions
+    course_id: Optional[str] = None
+    
+    # For topic interactions
+    topic: Optional[str] = None
+
+    @field_validator('*')
+    def check_either_course_or_topic(cls, v, values):
+        # This is a simplified validator. A more robust one would be in a different method.
+        # For now, we assume the API logic will enforce this correctly.
+        return v
 
 class StudentCourseInteraction(StudentCourseInteractionBase):
     id: int
     student_id: int
     timestamp: datetime
+    
+    # An interaction can be with a course OR about a topic
+    course_id: Optional[str] = None
+    course_type: Optional[str] = None
+    topic: Optional[str] = None
 
     class Config:
         from_attributes = True

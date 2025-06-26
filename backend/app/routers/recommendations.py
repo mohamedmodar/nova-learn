@@ -39,30 +39,42 @@ def get_course_recommendations(
     print("\n--- [API] New Recommendation Request ---")
     print(f"[API] Request Body: {request_data.dict()}")
 
-    # 1. Build a query from the student's profile
+    # 1. Build a rich query from multiple sources
     profile_query_parts = []
+    
+    # Source A: Student's permanent profile
     if current_student.profile:
-        print("[API] Found student profile. Building query from it.")
+        print("[API] Found student profile. Adding to query.")
         if current_student.profile.learning_goals:
             profile_query_parts.append(current_student.profile.learning_goals)
         if current_student.profile.technical_skills:
-            # Assuming technical_skills is a list of strings
             profile_query_parts.extend(current_student.profile.technical_skills)
     
-    # The primary query text comes from the user's profile
-    profile_query = " ".join(profile_query_parts)
-    # The query from the request is used to refine the search
-    final_query_text = f"{profile_query} {request_data.query_text or ''}".strip()
-    print(f"[API] Constructed Final Query: '{final_query_text}'")
-
-    # 2. Get user history from the database
-    user_interactions = crud.get_student_interactions(db, student_id=current_student.id)
+    # Source B: Student's recent interactions (search and chat topics)
+    all_interactions = crud.get_student_interactions(db, student_id=current_student.id)
     
+    # Separate learned topics from course likes/dislikes
+    learned_topics = [i.topic for i in all_interactions if i.topic]
+    if learned_topics:
+        learned_topics_str = " ".join(learned_topics)
+        profile_query_parts.append(learned_topics_str)
+        print(f"[API] Found {len(learned_topics)} learned topics from interactions. Adding to query.")
+
+    # Source C: The query from the request body (for specific, one-off searches)
+    if request_data.query_text:
+        profile_query_parts.append(request_data.query_text)
+        print(f"[API] Found ad-hoc query text: '{request_data.query_text}'. Adding to query.")
+
+    # Combine all sources into the final query
+    final_query_text = " ".join(profile_query_parts).strip()
+    print(f"[API] Constructed Final Rich Query: '{final_query_text}'")
+
+    # 2. Get user history from the database (likes and dislikes for specific courses)
     user_history = [
-        str(i.course_id) for i in user_interactions if i.interaction_type == 'like'
+        str(i.course_id) for i in all_interactions if i.interaction_type == 'like' and i.course_id
     ]
     disliked_history = [
-        str(i.course_id) for i in user_interactions if i.interaction_type == 'dislike'
+        str(i.course_id) for i in all_interactions if i.interaction_type == 'dislike' and i.course_id
     ]
     print(f"[API] User History (Likes): {user_history}")
     print(f"[API] User History (Dislikes): {disliked_history}")
