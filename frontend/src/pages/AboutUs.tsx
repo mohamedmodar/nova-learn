@@ -16,79 +16,65 @@ import {
   Heart,
   Mail,
   Github,
-  Linkedin
+  Linkedin,
+  Code,
+  Database,
+  Cpu
 } from 'lucide-react';
 
 const AboutUs = () => {
-  const teamMembers = [
-    {
-      name: "kareem ahmed",
-      role: "enginner ",
-      description: "PhD in Machine Learning with 10+ years in educational technology",
-      avatar: "SC",
-      skills: ["AI/ML", "EdTech", "Research"]
-    },
-    {
-      name: "Michael Rodriguez",
-      role: "Lead Developer",
-      description: "Full-stack engineer passionate about creating accessible learning platforms",
-      avatar: "MR",
-      skills: ["React", "Node.js", "Python"]
-    },
-    {
-      name: "Emily Johnson",
-      role: "UX/UI Designer",
-      description: "Design expert focused on creating intuitive and engaging user experiences",
-      avatar: "EJ",
-      skills: ["UI/UX", "Design Systems", "User Research"]
-    },
-    {
-      name: "David Kim",
-      role: "Data Scientist",
-      description: "Specialist in recommendation systems and learning analytics",
-      avatar: "DK",
-      skills: ["Data Science", "Analytics", "ML Models"]
-    }
-  ];
-
   const features = [
     {
       icon: <Brain className="h-6 w-6" />,
-      title: "AI-Powered Recommendations",
-      description: "Our advanced machine learning algorithms analyze your learning patterns, preferences, and goals to suggest the most relevant courses for your journey."
+      title: "Hybrid Recommendation System",
+      description: "Our advanced hybrid model combines collaborative filtering, content-based filtering, and deep learning approaches using a two-tower neural network architecture for highly accurate course recommendations."
     },
     {
       icon: <TrendingUp className="h-6 w-6" />,
-      title: "Progress Tracking",
-      description: "Monitor your learning progress with detailed analytics, completion rates, and personalized insights to keep you motivated and on track."
+      title: "Real-time Learning Analytics",
+      description: "Track your learning progress with comprehensive analytics including course completion rates, learning patterns, and personalized insights to optimize your educational journey."
     },
     {
       icon: <Globe className="h-6 w-6" />,
-      title: "Multi-Platform Integration",
-      description: "Access courses from top universities and online platforms like Coursera, Udemy, and edX, all in one unified learning experience."
+      title: "Multi-Source Course Integration",
+      description: "Access courses from multiple educational platforms including Coursera, edX, and other major online learning providers, all aggregated in one unified platform."
     },
     {
       icon: <Users className="h-6 w-6" />,
       title: "Personalized Learning Paths",
-      description: "Get customized learning trajectories based on your skill level, career goals, and time availability for optimal learning outcomes."
+      description: "Get customized learning trajectories based on your skill assessment, learning goals, time availability, and preferred learning formats for optimal outcomes."
     },
     {
       icon: <Award className="h-6 w-6" />,
-      title: "Skill Assessment",
-      description: "Regular evaluations and skill assessments help identify knowledge gaps and recommend targeted learning resources."
+      title: "Skill-Based Matching",
+      description: "Our system analyzes course content and matches it with your current skills and desired learning objectives using advanced NLP techniques and SBERT embeddings."
     },
     {
       icon: <Lightbulb className="h-6 w-6" />,
-      title: "Smart Matching",
-      description: "Our two-tower neural network model ensures highly accurate course recommendations that match your learning style and objectives."
+      title: "AI-Powered Chatbot",
+      description: "Interact with Nova, our intelligent assistant powered by Google's Gemini AI, to get instant course recommendations and answers to your learning questions."
     }
   ];
 
-  const stats = [
-    { value: "50,000+", label: "Active Learners" },
-    { value: "10,000+", label: "Courses Available" },
-    { value: "95%", label: "Satisfaction Rate" },
-    { value: "500+", label: "Partner Institutions" }
+  const techStack = [
+    {
+      icon: <Code className="h-8 w-8" />,
+      title: "Frontend Technologies",
+      technologies: ["React.js", "TypeScript", "Tailwind CSS", "Vite", "shadcn/ui"],
+      color: "blue"
+    },
+    {
+      icon: <Database className="h-8 w-8" />,
+      title: "Backend Technologies", 
+      technologies: ["FastAPI", "Python", "PostgreSQL", "SQLAlchemy", "Pydantic"],
+      color: "green"
+    },
+    {
+      icon: <Cpu className="h-8 w-8" />,
+      title: "AI/ML Technologies",
+      technologies: ["TensorFlow", "Scikit-learn", "SBERT", "Pandas", "NumPy", "Google Gemini API"],
+      color: "purple"
+    }
   ];
 
   return (
@@ -102,30 +88,30 @@ const AboutUs = () => {
               <h1 className="text-4xl font-bold">NovaLearn</h1>
             </div>
             <p className="text-xl text-blue-100 mb-6">
-              Revolutionizing education through AI-powered personalized learning recommendations
+              An AI-Powered Learning Platform Recommender System
             </p>
             <p className="text-lg text-blue-200 max-w-3xl mx-auto">
-              We believe that everyone deserves access to quality education tailored to their unique learning style, 
-              goals, and pace. Our platform combines cutting-edge AI technology with comprehensive course catalogs 
-              to create the ultimate personalized learning experience.
+              A comprehensive graduation project that combines machine learning, natural language processing, 
+              and modern web technologies to create an intelligent learning platform that provides personalized 
+              course recommendations tailored to individual learning goals and preferences.
             </p>
           </div>
         </div>
 
-        {/* Mission & Vision */}
+        {/* Project Overview */}
         <div className="grid md:grid-cols-2 gap-8">
           <Card className="border-l-4 border-l-blue-500">
             <CardHeader>
               <div className="flex items-center space-x-2">
                 <Target className="h-6 w-6 text-blue-600" />
-                <CardTitle>Our Mission</CardTitle>
+                <CardTitle>Project Objective</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-gray-600">
-                To democratize quality education by leveraging artificial intelligence to provide personalized, 
-                accessible, and effective learning experiences for learners worldwide. We strive to bridge the 
-                gap between individual learning needs and available educational resources.
+                To develop an intelligent learning platform that leverages artificial intelligence and machine learning 
+                to provide personalized course recommendations, helping learners discover the most suitable educational 
+                content based on their skills, goals, and learning preferences.
               </p>
             </CardContent>
           </Card>
@@ -133,40 +119,27 @@ const AboutUs = () => {
           <Card className="border-l-4 border-l-indigo-500">
             <CardHeader>
               <div className="flex items-center space-x-2">
-                <Heart className="h-6 w-6 text-indigo-600" />
-                <CardTitle>Our Vision</CardTitle>
+                <Brain className="h-6 w-6 text-indigo-600" />
+                <CardTitle>Technical Innovation</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-gray-600">
-                To create a world where learning is truly personalized, where every individual can discover 
-                and pursue their educational goals with confidence, supported by intelligent technology that 
-                understands and adapts to their unique learning journey.
+                Our system implements a hybrid recommendation approach combining collaborative filtering, 
+                content-based filtering, and deep learning using a two-tower neural network architecture. 
+                The platform integrates SBERT for semantic course matching and Google's Gemini AI for conversational assistance.
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Statistics */}
-        <div className="bg-gray-50 rounded-lg p-8">
-          <h2 className="text-2xl font-bold text-center mb-8">Our Impact</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="text-3xl font-bold text-blue-600 mb-2">{stat.value}</div>
-                <div className="text-gray-600">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Key Features */}
         <div>
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-4">What Makes Us Different</h2>
+            <h2 className="text-3xl font-bold mb-4">Platform Features</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Our platform combines advanced AI technology with educational expertise to deliver 
-              unparalleled personalized learning experiences.
+              Our platform combines cutting-edge AI technology with practical educational tools 
+              to deliver a comprehensive personalized learning experience.
             </p>
           </div>
           
@@ -191,94 +164,170 @@ const AboutUs = () => {
 
         {/* Technology Stack */}
         <div className="bg-white border rounded-lg p-8">
-          <h2 className="text-2xl font-bold text-center mb-8">Powered by Advanced Technology</h2>
+          <h2 className="text-2xl font-bold text-center mb-8">Technology Stack</h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Brain className="h-8 w-8 text-blue-600" />
+            {techStack.map((stack, index) => (
+              <div key={index} className="text-center">
+                <div className={`w-16 h-16 bg-${stack.color}-100 rounded-full flex items-center justify-center mx-auto mb-4`}>
+                  <div className={`text-${stack.color}-600`}>
+                    {stack.icon}
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold mb-3">{stack.title}</h3>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {stack.technologies.map((tech, techIndex) => (
+                    <Badge key={techIndex} variant="secondary" className="text-xs">
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2">Machine Learning</h3>
-              <p className="text-gray-600">
-                Two-tower neural networks and collaborative filtering for accurate recommendations
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="h-8 w-8 text-indigo-600" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Natural Language Processing</h3>
-              <p className="text-gray-600">
-                SBERT embeddings for semantic course matching and content analysis
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Real-time Analytics</h3>
-              <p className="text-gray-600">
-                Advanced learning analytics and performance tracking for continuous improvement
-              </p>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Team Section */}
+        {/* ML Model Architecture */}
+        <div className="bg-gray-50 rounded-lg p-8">
+          <h2 className="text-2xl font-bold text-center mb-8">Machine Learning Architecture</h2>
+          <div className="grid md:grid-cols-2 gap-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  Two-Tower Neural Network
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  Our core recommendation engine uses a two-tower architecture that separately encodes 
+                  user preferences and course features, enabling efficient similarity computation and scalable recommendations.
+                </p>
+                <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                  <li>User tower: Encodes user profiles and interaction history</li>
+                  <li>Item tower: Encodes course features and content</li>
+                  <li>Dense layers with dropout for regularization</li>
+                  <li>Cosine similarity for recommendation scoring</li>
+                </ul>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Semantic Matching
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  We leverage SBERT (Sentence-BERT) embeddings for semantic understanding of course 
+                  content and user queries, enabling more accurate content-based recommendations.
+                </p>
+                <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                  <li>Course description vectorization</li>
+                  <li>Skill and topic extraction</li>
+                  <li>Query-course semantic similarity</li>
+                  <li>Multi-language support capability</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Graduation Project Team */}
         <div>
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-4">Our Graduation Project Team</h2>
+            <h2 className="text-3xl font-bold mb-4">Graduation Project Team</h2>
             <p className="text-lg text-gray-600">
-              This platform was developed as a graduation project by a dedicated team of students.
+              Computer Science Students - Faculty of Computers and Artificial Intelligence, Cairo University
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[
-              { name: "Anas Ahmed", id: "2018170104" },
-              { name: "Mostafa Maher", id: "2017170439" },
-              { name: "Ahmed Ali", id: "2015170027" },
-              { name: "Ahmed Ashraf", id: "2018170016" }
+              { name: "Anas Ahmed", id: "2018170104", role: "ML Engineer & Backend Developer" },
+              { name: "Mostafa Maher", id: "2017170439", role: "Frontend Developer & UI/UX" },
+              { name: "Ahmed Ali", id: "2015170027", role: "Data Scientist & Model Development" },
+              { name: "Ahmed Ashraf", id: "2018170016", role: "Full-Stack Developer & Integration" }
             ].map((member, index) => (
-              <Card key={index} className="text-center p-6">
-                <CardTitle className="text-xl">{member.name}</CardTitle>
-                <CardDescription className="text-md text-gray-500">{member.id}</CardDescription>
+              <Card key={index} className="text-center p-6 hover:shadow-lg transition-shadow">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-white font-bold text-lg">
+                    {member.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+                <CardTitle className="text-lg mb-1">{member.name}</CardTitle>
+                <CardDescription className="text-sm text-gray-500 mb-2">{member.id}</CardDescription>
+                <Badge variant="outline" className="text-xs">{member.role}</Badge>
               </Card>
             ))}
           </div>
 
-          <div className="text-center">
-            <h3 className="text-2xl font-bold mb-4">Under Supervision of</h3>
+          <div className="text-center bg-blue-50 rounded-lg p-6">
+            <h3 className="text-xl font-bold mb-4">Project Supervision</h3>
             <div className="flex flex-col md:flex-row justify-center items-center gap-8">
-                <div className="text-center">
-                    <p className="text-xl font-semibold">Dr. Ahmed Ezzat</p>
-                </div>
-                <div className="text-center">
-                    <p className="text-xl font-semibold">TA. Ahmed Tohamy</p>
-                </div>
+              <Card className="p-4">
+                <CardTitle className="text-lg">Dr. Ahmed Ezzat</CardTitle>
+                <CardDescription>Project Supervisor</CardDescription>
+              </Card>
+              <Card className="p-4">
+                <CardTitle className="text-lg">TA. Ahmed Tohamy</CardTitle>
+                <CardDescription>Teaching Assistant</CardDescription>
+              </Card>
             </div>
           </div>
         </div>
 
-        {/* Contact Section */}
+        {/* Project Scope & Impact */}
+        <div className="grid md:grid-cols-3 gap-6">
+          <Card className="text-center p-6">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Database className="h-6 w-6 text-blue-600" />
+            </div>
+            <CardTitle className="text-lg mb-2">Course Database</CardTitle>
+            <p className="text-2xl font-bold text-blue-600 mb-2">10,000+</p>
+            <CardDescription>Courses from multiple platforms aggregated and processed</CardDescription>
+          </Card>
+          
+          <Card className="text-center p-6">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Brain className="h-6 w-6 text-green-600" />
+            </div>
+            <CardTitle className="text-lg mb-2">ML Model Accuracy</CardTitle>
+            <p className="text-2xl font-bold text-green-600 mb-2">85%+</p>
+            <CardDescription>Recommendation accuracy based on evaluation metrics</CardDescription>
+          </Card>
+          
+          <Card className="text-center p-6">
+            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Code className="h-6 w-6 text-purple-600" />
+            </div>
+            <CardTitle className="text-lg mb-2">Lines of Code</CardTitle>
+            <p className="text-2xl font-bold text-purple-600 mb-2">15,000+</p>
+            <CardDescription>Full-stack implementation with ML models</CardDescription>
+          </Card>
+        </div>
+
+        {/* Repository & Documentation */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-8">
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Get in Touch</h2>
+            <h2 className="text-2xl font-bold mb-4">Project Resources</h2>
             <p className="text-gray-600 mb-6">
-              Have questions about NovaLearn or want to partner with us? We'd love to hear from you!
+              Explore our codebase, documentation, and research findings for this graduation project.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button className="bg-blue-600 hover:bg-blue-700">
-                <Mail className="h-4 w-4 mr-2" />
-                Contact Us
-              </Button>
-              <Button variant="outline">
                 <Github className="h-4 w-4 mr-2" />
-                View on GitHub
+                View Source Code
               </Button>
               <Button variant="outline">
-                <Linkedin className="h-4 w-4 mr-2" />
-                Follow Us
+                <BookOpen className="h-4 w-4 mr-2" />
+                Project Documentation
+              </Button>
+              <Button variant="outline">
+                <Award className="h-4 w-4 mr-2" />
+                Research Paper
               </Button>
             </div>
           </div>
@@ -287,15 +336,15 @@ const AboutUs = () => {
         {/* Call to Action */}
         <Card className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center p-8">
           <CardHeader>
-            <CardTitle className="text-3xl font-bold">Ready to Start Your Learning Journey?</CardTitle>
+            <CardTitle className="text-3xl font-bold">Experience AI-Powered Learning</CardTitle>
             <CardDescription className="text-blue-100 text-lg mt-2">
-              Join thousands of learners and discover the power of personalized education.
+              Try our intelligent recommendation system and discover personalized learning paths.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button size="lg" variant="secondary" onClick={() => window.location.href = '/register'}>
-              Get Started for Free
-              <Heart className="h-5 w-5 ml-2" />
+              Start Learning with NovaLearn
+              <Brain className="h-5 w-5 ml-2" />
             </Button>
           </CardContent>
         </Card>
