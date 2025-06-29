@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,7 +41,7 @@ const Onboarding = () => {
     learningInterests: []
   });
   const [loading, setLoading] = useState(false);
-  const { updateUser } = useAuth();
+  const { user, fetchAndSetUser } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -64,11 +63,40 @@ const Onboarding = () => {
   const handleComplete = async () => {
     setLoading(true);
     
+    const profileData = {
+      learning_foundation_confidence: data.learningConfidence >= 3,
+      course_type_preference: data.coursePreference.join(', '),
+      english_proficiency: data.englishProficiency,
+      math_proficiency: data.mathProficiency,
+      technical_skills: data.technicalSkills,
+      programming_concepts_understood: data.programmingBasics,
+      prior_courses: data.priorCourses.join(', '),
+      learning_format_preference: data.learningFormat,
+      weekly_time_commitment: data.weeklyTime,
+      learning_goals: data.learningGoals.join(', '),
+    };
+
     try {
-      // Save onboarding data - replace with actual API call
-      console.log('Onboarding data:', data);
+      const token = localStorage.getItem('novalearn_token');
+      if (!token) {
+        throw new Error("No authentication token found.");
+      }
+
+      const response = await fetch('http://localhost:8000/students/me/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to save profile.");
+      }
       
-      updateUser({ hasCompletedOnboarding: true });
+      await fetchAndSetUser(token);
       
       toast({
         title: "Profile completed!",
@@ -78,8 +106,8 @@ const Onboarding = () => {
       navigate('/home');
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to save your preferences. Please try again.",
+        title: "Error saving profile",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {

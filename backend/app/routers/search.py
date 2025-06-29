@@ -4,8 +4,8 @@ from typing import List
 import logging
 
 from .. import crud, schemas, models
+from .. import dependencies
 from ..dependencies import get_db
-from . import auth
 
 router = APIRouter(
     prefix="/search",
@@ -18,7 +18,7 @@ router = APIRouter(
 def search_all_courses(
     query: str,
     db: Session = Depends(get_db),
-    current_user: models.Student = Depends(auth.get_current_active_user)
+    current_user: models.Student = Depends(dependencies.get_current_active_student)
 ):
     """
     Search both internal and external courses.
@@ -39,7 +39,7 @@ def search_all_courses(
 def search_external_courses(
     query: str,
     db: Session = Depends(get_db),
-    current_user: models.Student = Depends(auth.get_current_active_user)
+    current_user: models.Student = Depends(dependencies.get_current_active_student)
 ):
     """
     Search only external courses.
@@ -60,7 +60,7 @@ def search_external_courses(
 def search_internal_courses(
     query: str,
     db: Session = Depends(get_db),
-    current_user: models.Student = Depends(auth.get_current_active_user)
+    current_user: models.Student = Depends(dependencies.get_current_active_student)
 ):
     """
     Search only internal (YouTube playlist) courses.

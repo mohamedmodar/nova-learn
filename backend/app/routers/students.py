@@ -18,8 +18,19 @@ def read_current_student(current_student: models.Student = Depends(get_current_s
     """
     return current_student
 
+@router.put("/me", response_model=schemas.Student)
+def update_current_student(
+    student_update: schemas.StudentUpdate,
+    db: Session = Depends(get_db),
+    current_student: models.Student = Depends(get_current_student),
+):
+    """
+    Update the profile of the currently logged-in student.
+    """
+    return crud.update_student(db=db, student=current_student, student_update=student_update)
+
 @router.post("/me/profile", response_model=schemas.StudentProfile)
-def create_profile_for_current_student(
+def create_or_update_profile_for_current_student(
     profile_data: schemas.StudentProfileCreate,
     db: Session = Depends(get_db),
     current_student: models.Student = Depends(get_current_student),
@@ -29,13 +40,13 @@ def create_profile_for_current_student(
     This is typically used after the onboarding process.
     """
     if current_student.profile:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Profile already exists for this student.",
-        )
+        # If profile exists, update it
+        return crud.update_student_profile(db=db, student=current_student, profile_update=profile_data)
     
-    # We can add logic here to update the student model as well, e.g.,
-    # current_student.has_completed_onboarding = True
-    # db.commit()
+    # If profile does not exist, create it
+    current_student.has_completed_onboarding = True
+    db.add(current_student)
+    db.commit()
+    db.refresh(current_student)
     
     return crud.create_student_profile(db=db, student_id=current_student.id, profile=profile_data) 

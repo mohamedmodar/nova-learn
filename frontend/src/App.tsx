@@ -16,6 +16,7 @@ import Search from "./pages/Search";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import PlaylistDetails from "./pages/PlaylistDetails";
 
 const queryClient = new QueryClient();
 
@@ -56,9 +57,10 @@ const AppRoutes = () => {
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+        <Route path="/courses" element={<Courses />} />
         <Route path="/about-us" element={<AboutUs />} />
-        <Route path="/course/:id" element={<ProtectedRoute><CourseDetails /></ProtectedRoute>} />
+        <Route path="/course/:id" element={<CourseDetails />} />
+        <Route path="/playlist/:playlistTitle" element={<ProtectedRoute><PlaylistDetails /></ProtectedRoute>} />
         <Route path="/progress" element={<ProtectedRoute><Progress /></ProtectedRoute>} />
         <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

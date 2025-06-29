@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,7 +15,6 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    isStudent: false
   });
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -39,22 +37,21 @@ const Register = () => {
 
     try {
       await register({
-        name: formData.name,
+        full_name: formData.name,
         email: formData.email,
         password: formData.password,
-        isStudent: formData.isStudent
       });
       
       toast({
         title: "Account created!",
-        description: "Welcome to NovaLearn. Let's personalize your experience.",
+        description: "You can now sign in with your credentials.",
       });
       
-      navigate('/onboarding');
+      navigate('/login');
     } catch (error) {
       toast({
         title: "Registration failed",
-        description: "Please try again or contact support.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {
@@ -126,17 +123,6 @@ const Register = () => {
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   required
                 />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="isStudent"
-                  checked={formData.isStudent}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isStudent: checked as boolean })}
-                />
-                <Label htmlFor="isStudent" className="text-sm">
-                  I'm a student at University
-                </Label>
               </div>
 
               <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" disabled={loading}>

@@ -26,6 +26,22 @@ def read_external_courses(skip: int = 0, limit: int = 100, db: Session = Depends
     courses = crud.get_external_courses(db, skip=skip, limit=limit)
     return courses
 
+@router.get("/internal/playlist/{playlist_title}", response_model=List[schemas.InternalCourse])
+def read_internal_courses_by_playlist(playlist_title: str, db: Session = Depends(get_db)):
+    """
+    Retrieve all internal course videos for a given playlist title.
+    """
+    # URL encoding might replace spaces with '+', so we replace them back.
+    # FastAPI does this decoding automatically from the path, but this is a safeguard.
+    decoded_playlist_title = playlist_title.replace('+', ' ')
+    courses = crud.get_internal_courses_by_playlist(db, playlist_title=decoded_playlist_title)
+    if not courses:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Playlist with title '{decoded_playlist_title}' not found."
+        )
+    return courses
+
 @router.get("/{course_id}", response_model=Union[schemas.ExternalCourse, schemas.InternalCourse])
 def read_course_by_id(course_id: str, db: Session = Depends(get_db)):
     """

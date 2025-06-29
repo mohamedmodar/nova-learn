@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -14,8 +13,7 @@ const OnboardingStep3: React.FC<Props> = ({ data, updateData }) => {
   const learningFormats = [
     { value: 'short', label: 'Short videos (5-15 minutes)' },
     { value: 'long', label: 'Long-form content (30+ minutes)' },
-    { value: 'text', label: 'Text-based tutorials' },
-    { value: 'interactive', label: 'Interactive coding exercises' }
+
   ];
 
   return (

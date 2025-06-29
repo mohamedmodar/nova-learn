@@ -9,26 +9,6 @@ from .config import settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(email=email)
-    except JWTError:
-        raise credentials_exception
-    
-    user = crud.get_user_by_email(db, email=token_data.email)
-    if user is None:
-        raise credentials_exception
-    return user
-
 def get_current_student(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.Student:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,4 +27,8 @@ def get_current_student(token: str = Depends(oauth2_scheme), db: Session = Depen
     student = crud.get_student_by_email(db, email=token_data.email)
     if student is None:
         raise credentials_exception
-    return student 
+    return student
+
+def get_current_active_student(current_student: models.Student = Depends(get_current_student)):
+    # This is a placeholder for potential future logic, e.g., checking if a user is banned.
+    return current_student

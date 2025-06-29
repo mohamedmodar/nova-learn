@@ -19,18 +19,6 @@ import datetime
 Base = declarative_base()
 
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    full_name = Column(String)
-    is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
-    is_student = Column(Boolean, default=True)
-    has_completed_onboarding = Column(Boolean, default=False)
-
-
 class Student(Base):
     __tablename__ = "students"
     id = Column(Integer, primary_key=True, index=True)
@@ -38,14 +26,13 @@ class Student(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, index=True)
     registration_date = Column(DateTime, default=datetime.datetime.utcnow)
+    has_completed_onboarding = Column(Boolean, default=False, nullable=False)
 
     enrollments = relationship("Enrollment", back_populates="student")
     profile = relationship("StudentProfile", back_populates="student", uselist=False)
     interactions = relationship("StudentCourseInteraction", back_populates="student")
-    internal_course_progress = relationship(
-        "StudentInternalCourseProgress", back_populates="student"
-    )
     recommendations = relationship("RecommendationLog", back_populates="student")
+    video_progress = relationship("StudentVideoProgress", back_populates="student")
 
 
 class StudentProfile(Base):
@@ -63,6 +50,7 @@ class StudentProfile(Base):
     weekly_time_commitment = Column(Integer)
     learning_goals = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
 
     student = relationship("Student", back_populates="profile")
 
@@ -91,9 +79,7 @@ class InternalCourse(Base):
     video_url = Column(String)
     channel_url = Column(String)
 
-    progress = relationship(
-        "StudentInternalCourseProgress", back_populates="internal_course"
-    )
+    progress = relationship("StudentVideoProgress", back_populates="video")
 
 
 class StudentCourseInteraction(Base):
@@ -109,6 +95,7 @@ class StudentCourseInteraction(Base):
     interaction_type = Column(String, nullable=False) # 'like', 'dislike', 'search', 'chat_topic'
     value = Column(Float, nullable=True)  # For ratings, etc.
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+ 
 
     student = relationship("Student", back_populates="interactions")
 
@@ -126,19 +113,15 @@ class Enrollment(Base):
     student = relationship("Student", back_populates="enrollments")
 
 
-class StudentInternalCourseProgress(Base):
-    __tablename__ = "student_internal_course_progress"
+class StudentVideoProgress(Base):
+    __tablename__ = "student_video_progress"
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
-    internal_course_id = Column(
-        Integer, ForeignKey("internal_courses.id"), nullable=False
-    )
-    last_video_index = Column(Integer)
-    last_accessed = Column(DateTime, default=datetime.datetime.utcnow)
-    completed = Column(Boolean, default=False)
+    video_id = Column(Integer, ForeignKey("internal_courses.id"), nullable=False)
+    completed = Column(Boolean, default=False, nullable=False)
 
-    student = relationship("Student", back_populates="internal_course_progress")
-    internal_course = relationship("InternalCourse", back_populates="progress")
+    student = relationship("Student", back_populates="video_progress")
+    video = relationship("InternalCourse", back_populates="progress")
 
 
 class RecommendationLog(Base):

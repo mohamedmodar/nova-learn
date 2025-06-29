@@ -22,31 +22,6 @@ def _parse_skills(skills_str: str) -> List[str]:
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ====================
-# User CRUD
-# ====================
-def get_user(db: Session, user_id: int):
-    return db.query(models.User).filter(models.User.id == user_id).first()
-
-def get_user_by_email(db: Session, email: str):
-    return db.query(models.User).filter(models.User.email == email).first()
-
-def get_users(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.User).offset(skip).limit(limit).all()
-
-def create_user(db: Session, user: schemas.UserCreate):
-    hashed_password = pwd_context.hash(user.password)
-    db_user = models.User(
-        email=user.email,
-        full_name=user.full_name,
-        hashed_password=hashed_password,
-        is_student=user.is_student,
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-# ====================
 # Student CRUD
 # ====================
 def get_student(db: Session, student_id: int):
@@ -70,6 +45,14 @@ def create_student(db: Session, student: schemas.StudentCreate):
     db.refresh(db_student)
     return db_student
 
+def update_student(db: Session, student: models.Student, student_update: schemas.StudentUpdate):
+    """Updates a student's information."""
+    student.full_name = student_update.full_name
+    student.email = student_update.email
+    db.commit()
+    db.refresh(student)
+    return student
+
 def create_student_profile(db: Session, student_id: int, profile: schemas.StudentProfileCreate):
     db_profile = models.StudentProfile(
         student_id=student_id,
@@ -79,6 +62,19 @@ def create_student_profile(db: Session, student_id: int, profile: schemas.Studen
     db.commit()
     db.refresh(db_profile)
     return db_profile
+
+def update_student_profile(db: Session, student: models.Student, profile_update: schemas.StudentProfileCreate):
+    """Updates an existing student profile."""
+    if not student.profile:
+        return None # Or raise an exception, depending on desired behavior
+    
+    profile_data = profile_update.dict()
+    for key, value in profile_data.items():
+        setattr(student.profile, key, value)
+        
+    db.commit()
+    db.refresh(student.profile)
+    return student.profile
 
 # ====================
 # Course CRUD
@@ -101,6 +97,12 @@ def get_external_course_by_id(db: Session, course_id: str):
 
 def get_internal_course_by_id(db: Session, course_id: int):
     return db.query(models.InternalCourse).filter(models.InternalCourse.id == course_id).first()
+
+def get_internal_courses_by_playlist(db: Session, playlist_title: str):
+    """
+    Retrieves all internal course videos for a given playlist title.
+    """
+    return db.query(models.InternalCourse).filter(models.InternalCourse.playlist_title == playlist_title).all()
 
 def get_external_courses(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.ExternalCourse).offset(skip).limit(limit).all()
@@ -200,6 +202,96 @@ def update_enrollment_progress(db: Session, db_enrollment: models.Enrollment, st
     db.commit()
     db.refresh(db_enrollment)
     return db_enrollment
+
+# =================================
+# Progress CRUD Functions
+# =================================
+
+def get_video_progress_for_student(db: Session, student_id: int, video_id: int):
+    """Retrieves a specific video progress record for a student."""
+    return db.query(models.StudentVideoProgress).filter(
+        models.StudentVideoProgress.student_id == student_id,
+        models.StudentVideoProgress.video_id == video_id
+    ).first()
+
+def get_all_video_progress_for_student(db: Session, student_id: int):
+    """Retrieves all video progress records for a student."""
+    return db.query(models.StudentVideoProgress).filter(
+        models.StudentVideoProgress.student_id == student_id
+    ).all()
+
+def create_or_update_video_progress(db: Session, student_id: int, video_id: int, completed: bool):
+    """Creates or updates a video progress record for a student."""
+    db_progress = get_video_progress_for_student(db, student_id, video_id)
+    
+    if db_progress:
+        db_progress.completed = completed
+    else:
+        db_progress = models.StudentVideoProgress(
+            student_id=student_id,
+            video_id=video_id,
+            completed=completed
+        )
+        db.add(db_progress)
+    
+    db.commit()
+    db.refresh(db_progress)
+    return db_progress
+
+def get_student_playlist_progress(db: Session, student_id: int):
+    """
+    Calculates and returns the progress for all playlists a student has interacted with.
+    """
+    # Step 1: Get all video progress records for the student
+    all_progress = db.query(models.StudentVideoProgress).filter(
+        models.StudentVideoProgress.student_id == student_id
+    ).all()
+
+    if not all_progress:
+        return []
+
+    # Step 2: Get the unique IDs of all videos the student has ever interacted with
+    interacted_video_ids = list(set([p.video_id for p in all_progress]))
+    
+    # Step 3: Get the full course objects for these videos
+    interacted_courses = db.query(models.InternalCourse).filter(
+        models.InternalCourse.id.in_(interacted_video_ids)
+    ).all()
+
+    # Step 4: Get the unique playlist titles from these courses
+    playlist_titles = list(set([c.playlist_title for c in interacted_courses]))
+    
+    # Step 5: Get all videos for those playlists to calculate totals
+    all_playlist_videos = db.query(models.InternalCourse).filter(
+        models.InternalCourse.playlist_title.in_(playlist_titles)
+    ).all()
+
+    # Step 6: Organize all videos by playlist
+    videos_by_playlist = {}
+    for video in all_playlist_videos:
+        if video.playlist_title not in videos_by_playlist:
+            videos_by_playlist[video.playlist_title] = {
+                "videos": [],
+                "playlist_url": video.playlist_url
+            }
+        videos_by_playlist[video.playlist_title]["videos"].append(video.id)
+
+    # Step 7: Calculate progress for each playlist
+    completed_videos_map = {p.video_id for p in all_progress if p.completed}
+    
+    result = []
+    for title, data in videos_by_playlist.items():
+        total_vids = len(data["videos"])
+        completed_vids = len([vid for vid in data["videos"] if vid in completed_videos_map])
+        
+        result.append(schemas.PlaylistProgress(
+            playlist_title=title,
+            completed_videos=completed_vids,
+            total_videos=total_vids,
+            playlist_url=data["playlist_url"]
+        ))
+        
+    return result
 
 # =================================
 # Search Functions

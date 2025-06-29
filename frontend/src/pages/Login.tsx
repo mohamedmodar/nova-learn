@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,12 +21,17 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const user = await login(email, password);
       toast({
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
-      navigate('/home');
+
+      if (user.has_completed_onboarding) {
+        navigate('/home');
+      } else {
+        navigate('/onboarding');
+      }
     } catch (error) {
       toast({
         title: "Login failed",

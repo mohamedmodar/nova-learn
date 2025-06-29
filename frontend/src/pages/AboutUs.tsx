@@ -22,8 +22,8 @@ import {
 const AboutUs = () => {
   const teamMembers = [
     {
-      name: "Dr. Sarah Chen",
-      role: "Founder & AI Research Lead",
+      name: "kareem ahmed",
+      role: "enginner ",
       description: "PhD in Machine Learning with 10+ years in educational technology",
       avatar: "SC",
       skills: ["AI/ML", "EdTech", "Research"]
@@ -226,36 +226,36 @@ const AboutUs = () => {
         {/* Team Section */}
         <div>
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-4">Meet Our Team</h2>
+            <h2 className="text-3xl font-bold mb-4">Our Graduation Project Team</h2>
             <p className="text-lg text-gray-600">
-              Passionate educators, technologists, and researchers dedicated to transforming learning
+              This platform was developed as a graduation project by a dedicated team of students.
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {teamMembers.map((member, index) => (
-              <Card key={index} className="text-center hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl font-bold text-white">{member.avatar}</span>
-                  </div>
-                  <CardTitle className="text-lg">{member.name}</CardTitle>
-                  <CardDescription className="font-medium text-blue-600">
-                    {member.role}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">{member.description}</p>
-                  <div className="flex flex-wrap gap-1 justify-center">
-                    {member.skills.map((skill) => (
-                      <Badge key={skill} variant="outline" className="text-xs">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {[
+              { name: "Anas Ahmed", id: "2018170104" },
+              { name: "Mostafa Maher", id: "2017170439" },
+              { name: "Ahmed Ali", id: "2015170027" },
+              { name: "Ahmed Ashraf", id: "2018170016" }
+            ].map((member, index) => (
+              <Card key={index} className="text-center p-6">
+                <CardTitle className="text-xl">{member.name}</CardTitle>
+                <CardDescription className="text-md text-gray-500">{member.id}</CardDescription>
               </Card>
             ))}
+          </div>
+
+          <div className="text-center">
+            <h3 className="text-2xl font-bold mb-4">Under Supervision of</h3>
+            <div className="flex flex-col md:flex-row justify-center items-center gap-8">
+                <div className="text-center">
+                    <p className="text-xl font-semibold">Dr. Ahmed Ezzat</p>
+                </div>
+                <div className="text-center">
+                    <p className="text-xl font-semibold">TA. Ahmed Tohamy</p>
+                </div>
+            </div>
           </div>
         </div>
 
@@ -285,19 +285,20 @@ const AboutUs = () => {
         </div>
 
         {/* Call to Action */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg p-8 text-white text-center">
-          <h2 className="text-2xl font-bold mb-4">Ready to Transform Your Learning?</h2>
-          <p className="text-blue-100 mb-6">
-            Join thousands of learners who have already discovered their perfect educational path with NovaLearn
-          </p>
-          <Button 
-            size="lg" 
-            className="bg-white text-blue-600 hover:bg-gray-100"
-            onClick={() => window.location.href = '/home'}
-          >
-            Start Learning Today
-          </Button>
-        </div>
+        <Card className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center p-8">
+          <CardHeader>
+            <CardTitle className="text-3xl font-bold">Ready to Start Your Learning Journey?</CardTitle>
+            <CardDescription className="text-blue-100 text-lg mt-2">
+              Join thousands of learners and discover the power of personalized education.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button size="lg" variant="secondary" onClick={() => window.location.href = '/register'}>
+              Get Started for Free
+              <Heart className="h-5 w-5 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

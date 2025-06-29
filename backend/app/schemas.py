@@ -48,30 +48,6 @@ class Course(BaseModel):
         from_attributes = True
 
 # ====================
-# User Schemas
-# ====================
-class UserBase(BaseModel):
-    email: EmailStr
-    full_name: Optional[str] = None
-
-class UserCreate(UserBase):
-    password: str
-    is_student: Optional[bool] = True
-
-class UserUpdate(UserBase):
-    full_name: Optional[str] = None
-    is_student: Optional[bool] = None
-
-class User(UserBase):
-    id: int
-    is_active: bool
-    is_admin: bool
-    has_completed_onboarding: bool
-
-    class Config:
-        orm_mode = True
-
-# ====================
 # User Preference Schemas
 # ====================
 class UserPreferenceBase(BaseModel):
@@ -165,10 +141,14 @@ class StudentBase(BaseModel):
 class StudentCreate(StudentBase):
     password: str
 
+class StudentUpdate(StudentBase):
+    pass
+
 class Student(StudentBase):
     id: int
     profile: Optional[StudentProfile] = None
     registration_date: datetime
+    has_completed_onboarding: bool
 
     class Config:
         orm_mode = True
@@ -277,6 +257,26 @@ class StudentInternalCourseProgress(StudentInternalCourseProgressBase):
 
     class Config:
         from_attributes = True
+
+class StudentVideoProgressBase(BaseModel):
+    video_id: int
+    completed: bool
+
+class StudentVideoProgressCreate(StudentVideoProgressBase):
+    pass
+
+class StudentVideoProgress(StudentVideoProgressBase):
+    id: int
+    student_id: int
+
+    class Config:
+        from_attributes = True
+
+class PlaylistProgress(BaseModel):
+    playlist_title: str
+    completed_videos: int
+    total_videos: int
+    playlist_url: Optional[str] = None
 
 # ====================
 # Recommendation Schemas

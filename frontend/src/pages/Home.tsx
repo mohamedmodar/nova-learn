@@ -8,120 +8,89 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Heart, BookOpen, Clock, Star, ExternalLink } from 'lucide-react';
-
-interface Course {
-  id: string;
-  title: string;
-  description: string;
-  provider: string;
-  level: string;
-  rating: number;
-  adjustedRating: number;
-  duration: string;
-  skills: string[];
-  progress?: number;
-  isExternal?: boolean;
-}
+import CourseCard, { Course } from '../components/shared/CourseCard';
+import { toast } from 'sonner';
 
 const Home = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [internalCourses, setInternalCourses] = useState<Course[]>([]);
-  const [externalCourses, setExternalCourses] = useState<Course[]>([]);
+  const [recommendations, setRecommendations] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user needs onboarding
-    if (!user?.hasCompletedOnboarding) {
-      navigate('/onboarding');
-      return;
-    }
+    const fetchRecommendations = async () => {
+      if (!user) return;
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('novalearn_token');
+        const response = await fetch('http://localhost:8000/recommendations/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ top_n: 6 }), // Fetch 6 recommendations for the homepage
+        });
 
-    // Mock API calls to fetch courses
-    const fetchCourses = async () => {
-      // Mock internal courses
-      const mockInternalCourses: Course[] = [
-        {
-          id: '1',
-          title: 'Introduction to Computer Science',
-          description: 'Fundamental concepts of programming and computer science',
-          provider: 'University',
-          level: 'Beginner',
-          rating: 4.5,
-          adjustedRating: 4.5,
-          duration: '12 weeks',
-          skills: ['Programming', 'Algorithms', 'Data Structures'],
-          progress: 65
-        },
-        {
-          id: '2',
-          title: 'Database Management Systems',
-          description: 'Learn SQL and database design principles',
-          provider: 'University',
-          level: 'Intermediate',
-          rating: 4.2,
-          adjustedRating: 4.2,
-          duration: '10 weeks',
-          skills: ['SQL', 'Database Design', 'Data Modeling'],
-          progress: 30
+        if (!response.ok) {
+          throw new Error('Failed to fetch recommendations');
         }
-      ];
 
-      // Mock external recommendations
-      const mockExternalCourses: Course[] = [
-        {
-          id: '3',
-          title: 'Complete React Developer Course',
-          description: 'Build modern web applications with React, Redux, and more',
-          provider: 'Udemy',
-          level: 'Intermediate',
-          rating: 4.6,
-          adjustedRating: 4.8,
-          duration: '40 hours',
-          skills: ['React', 'JavaScript', 'Redux', 'Web Development'],
-          isExternal: true
-        },
-        {
-          id: '4',
-          title: 'Python for Data Science',
-          description: 'Master Python programming for data analysis and visualization',
-          provider: 'Coursera',
-          level: 'Beginner',
-          rating: 4.4,
-          adjustedRating: 4.6,
-          duration: '6 weeks',
-          skills: ['Python', 'Data Analysis', 'Pandas', 'NumPy'],
-          isExternal: true
-        },
-        {
-          id: '5',
-          title: 'Machine Learning A-Z',
-          description: 'Hands-on machine learning with Python and R',
-          provider: 'Udemy',
-          level: 'Advanced',
-          rating: 4.5,
-          adjustedRating: 4.7,
-          duration: '44 hours',
-          skills: ['Machine Learning', 'Python', 'Statistics', 'AI'],
-          isExternal: true
-        }
-      ];
+        const data = await response.json();
+        
+        const transformedCourses: Course[] = data.map((c: any) => ({
+          ...c,
+          id: c.item_id || c.id.toString(),
+          course_type: 'external' // Recommendations are currently only external
+        }));
+        
+        setRecommendations(transformedCourses);
 
-      setInternalCourses(mockInternalCourses);
-      setExternalCourses(mockExternalCourses);
-      setLoading(false);
+      } catch (error) {
+        console.error("Failed to fetch recommendations:", error);
+        toast.error("Could not load recommendations.");
+      } finally {
+        setLoading(false);
+      }
     };
 
-    fetchCourses();
-  }, [user, navigate]);
+    if (user) {
+        fetchRecommendations();
+    } else {
+        setLoading(false);
+    }
+  }, [user]);
 
-  const handleCourseClick = (courseId: string) => {
-    navigate(`/course/${courseId}`);
+  const handleCourseClick = (courseId: string, url?: string, isExternal?: boolean) => {
+    if (isExternal && url) {
+      window.open(url, '_blank');
+    } else {
+      navigate(`/course/${courseId}`);
+    }
   };
 
-  const handleLike = (courseId: string) => {
-    console.log('Liked course:', courseId);
-    // API call to save interaction
+  const handleLike = async (courseId: string) => {
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) {
+      toast.error("You must be logged in to like a course.");
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: courseId, interaction_type: 'like' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save like.");
+      }
+      toast.success("Thanks for your feedback!");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
   };
 
   if (loading) {
@@ -137,147 +106,29 @@ const Home = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg p-6 text-white">
-          <h1 className="text-2xl font-bold mb-2">Welcome back, {user?.name}!</h1>
-          <p className="text-blue-100">Continue your learning journey with personalized recommendations</p>
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg p-8 text-white shadow-lg">
+          <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.full_name}!</h1>
+          <p className="text-blue-100 text-lg">Here are some courses we've picked just for you.</p>
         </div>
 
-        <Tabs defaultValue={user?.isStudent ? "internal" : "external"} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            {/* Removed the conditional rendering for Internal Courses TabTrigger */}
-            <TabsTrigger value="internal">Internal Courses</TabsTrigger>
-            <TabsTrigger value="external">Recommendations</TabsTrigger>
-          </TabsList>
-
-          {/* Removed the conditional rendering for Internal Courses TabsContent */}
-          <TabsContent value="internal" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Your University Courses</h2>
-              <Button variant="outline" onClick={() => navigate('/progress')}>
-                View All Progress
-              </Button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {internalCourses.map((course) => (
-                <Card key={course.id} className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{course.title}</CardTitle>
-                        <CardDescription>{course.description}</CardDescription>
-                      </div>
-                      <Badge variant="secondary">{course.level}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        {course.skills.slice(0, 3).map((skill) => (
-                          <Badge key={skill} variant="outline" className="text-xs">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Progress</span>
-                          <span>{course.progress}%</span>
-                        </div>
-                        <Progress value={course.progress || 0} className="w-full" />
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2">
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {course.duration}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            {course.rating}
-                          </div>
-                        </div>
-                        <Button onClick={() => handleCourseClick(course.id)}>
-                          Continue
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="external" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Recommended for You</h2>
-              <Button variant="outline" onClick={() => navigate('/search')}>
-                Explore More
-              </Button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {externalCourses.map((course) => (
-                <Card key={course.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{course.title}</CardTitle>
-                        <CardDescription className="line-clamp-2">{course.description}</CardDescription>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleLike(course.id)}
-                        className="text-gray-400 hover:text-red-500"
-                      >
-                        <Heart className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <Badge variant="secondary">{course.provider}</Badge>
-                        <Badge>{course.level}</Badge>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1">
-                        {course.skills.slice(0, 4).map((skill) => (
-                          <Badge key={skill} variant="outline" className="text-xs">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2">
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {course.duration}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            {course.adjustedRating}
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => handleCourseClick(course.id)}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-1" />
-                          Enroll
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+        <div className="pt-4">
+            <h2 className="text-2xl font-semibold mb-4">Recommended For You</h2>
+            {recommendations.length > 0 ? (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {recommendations.map((course) => (
+                    <CourseCard 
+                        key={course.id} 
+                        course={course}
+                        onLike={handleLike}
+                    />
+                ))}
+                </div>
+            ) : (
+                <div className="text-center py-12 bg-gray-100 rounded-lg">
+                    <p className="text-gray-600">No recommendations available at the moment. Please complete your profile to get personalized suggestions.</p>
+                </div>
+            )}
+        </div>
       </div>
     </Layout>
   );

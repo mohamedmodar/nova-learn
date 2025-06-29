@@ -7,14 +7,14 @@ from .database import engine
 from . import models
 from .routers import (
     auth, 
-    users, 
     students, 
     courses, 
     recommendations, 
     interactions,
     enrollments,
     search,
-    chatbot
+    chatbot,
+    progress
 )
 
 # Add the model directory to the Python path
@@ -58,7 +58,9 @@ def load_model():
 
 # Set up CORS
 origins = [
+    "*", # Allow all origins for local development - NOT FOR PRODUCTION
     "http://localhost:5173",  # Default Vite dev server port
+    "http://localhost:5174",  # Another common Vite port
     "http://localhost:3000",  # Common React dev server port
     "http://127.0.0.1:5173",
 ]
@@ -77,7 +79,6 @@ def read_root():
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(users.router)
 app.include_router(students.router)
 app.include_router(courses.router)
 app.include_router(recommendations.router)
@@ -85,5 +86,6 @@ app.include_router(interactions.router)
 app.include_router(enrollments.router)
 app.include_router(search.router)
 app.include_router(chatbot.router)
+app.include_router(progress.router)
 
 # Here we will later include the routers for auth, users, courses etc. 

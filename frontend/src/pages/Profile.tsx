@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
@@ -21,14 +20,24 @@ import {
 } from 'lucide-react';
 
 const Profile = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, fetchAndSetUser } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: user?.name || '',
+    full_name: user?.full_name || '',
     email: user?.email || ''
   });
+
+  // Use useEffect to update form when user object changes
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        full_name: user.full_name || '',
+        email: user.email || '',
+      });
+    }
+  }, [user]);
 
   // Mock data for user's activity
   const [favorites] = useState([
@@ -58,16 +67,42 @@ const Profile = () => {
 
   const handleSaveProfile = async () => {
     setLoading(true);
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) {
+        toast({
+            title: "Authentication Error",
+            description: "Could not find authentication token. Please log in again.",
+            variant: "destructive",
+        });
+        setLoading(false);
+        return;
+    }
+
     try {
-      updateUser(formData);
+      const response = await fetch('http://localhost:8000/students/me', {
+          method: 'PUT',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+          throw new Error('Failed to update profile.');
+      }
+
+      // Re-fetch user data to update the context and UI
+      await fetchAndSetUser(token);
+
       toast({
         title: "Profile updated",
         description: "Your profile has been successfully updated.",
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update profile. Please try again.",
+        description: error.message || "Failed to update profile. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -111,8 +146,8 @@ const Profile = () => {
                     <Label htmlFor="name">Full Name</Label>
                     <Input
                       id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -128,12 +163,9 @@ const Profile = () => {
 
                 <div className="flex items-center gap-4 pt-4">
                   <div className="flex items-center gap-2">
-                    <Badge variant={user?.isStudent ? "default" : "secondary"}>
-                      {user?.isStudent ? 'University Student' : 'External Learner'}
+                    <Badge variant={user?.has_completed_onboarding ? "default" : "secondary"}>
+                      {user?.has_completed_onboarding ? 'Onboarding Completed' : 'Onboarding Pending'}
                     </Badge>
-                    {user?.isAdmin && (
-                      <Badge variant="destructive">Admin</Badge>
-                    )}
                   </div>
                 </div>
 
