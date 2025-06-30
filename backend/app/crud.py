@@ -4,6 +4,9 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from typing import List
 import ast
+import json
+from sqlalchemy import or_
+from sqlalchemy.types import Text
 
 def _parse_skills(skills_str: str) -> List[str]:
     """Safely parses a string representation of a list into a list of strings."""
@@ -18,6 +21,84 @@ def _parse_skills(skills_str: str) -> List[str]:
     except (ValueError, SyntaxError):
         # Handle cases where the string is not a valid literal (e.g., "skill1, skill2")
         return [s.strip() for s in skills_str.split(',') if s.strip()]
+
+def extract_topic_from_course(course, course_type: str) -> str:
+    """Extract topic/skills from a course to populate the topic field in interactions."""
+    if course_type == "external" and course:
+        # For external courses, try to extract from skills first, then title
+        topics = []
+        if hasattr(course, 'skills') and course.skills:
+            try:
+                # Handle both string and JSON formats
+                if isinstance(course.skills, str):
+                    skills_data = json.loads(course.skills)
+                else:
+                    skills_data = course.skills
+                
+                if isinstance(skills_data, list):
+                    topics.extend([str(skill).strip() for skill in skills_data if skill])
+                elif isinstance(skills_data, dict):
+                    # If skills is a dict, try to get values
+                    for value in skills_data.values():
+                        if isinstance(value, list):
+                            topics.extend([str(skill).strip() for skill in value if skill])
+                        elif value:
+                            topics.append(str(value).strip())
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # If no skills found, extract from title
+        if not topics and hasattr(course, 'title') and course.title:
+            # Extract key terms from title (basic approach)
+            title_words = course.title.lower().split()
+            # Filter out common words and keep meaningful terms
+            stop_words = {'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'complete', 'course', 'tutorial', 'guide', 'learn', 'learning'}
+            meaningful_words = [word for word in title_words if word not in stop_words and len(word) > 2]
+            topics.extend(meaningful_words[:3])  # Take first 3 meaningful words
+        
+        return " ".join(topics[:5]) if topics else course.title  # Max 5 topics or fallback to title
+    
+    elif course_type == "internal" and course:
+        # For internal courses, extract from playlist and video titles
+        topics = []
+        if hasattr(course, 'playlist_title') and course.playlist_title:
+            playlist_words = course.playlist_title.lower().split()
+            stop_words = {'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'complete', 'course', 'tutorial', 'guide', 'learn', 'learning', 'playlist'}
+            meaningful_words = [word for word in playlist_words if word not in stop_words and len(word) > 2]
+            topics.extend(meaningful_words[:3])
+        
+        if hasattr(course, 'video_title') and course.video_title:
+            video_words = course.video_title.lower().split()
+            stop_words = {'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'complete', 'course', 'tutorial', 'guide', 'learn', 'learning', 'video'}
+            meaningful_words = [word for word in video_words if word not in stop_words and len(word) > 2]
+            topics.extend(meaningful_words[:2])
+        
+        return " ".join(list(set(topics))[:5]) if topics else course.playlist_title or course.video_title
+    
+    return ""
+
+def get_interaction_value(interaction_type: str, course=None) -> float:
+    """Generate appropriate values for different interaction types to help with personalization."""
+    if interaction_type == "like":
+        return 5.0  # High positive value for likes
+    elif interaction_type == "dislike":
+        return 1.0  # Low positive value (we track dislikes separately, but still need a value)
+    elif interaction_type == "search":
+        return 3.0  # Medium value for search interest
+    elif interaction_type == "chat_topic":
+        return 4.0  # High value for chat topics (shows strong interest)
+    elif interaction_type == "hover":
+        return 2.5  # Medium value for meaningful hover (3+ seconds)
+    elif interaction_type == "click":
+        return 3.5  # High value for active clicking
+    elif interaction_type == "enroll":
+        return 4.5  # Very high value for enrollment
+    elif interaction_type == "complete":
+        return 5.0  # Highest value for completion
+    elif interaction_type == "continue":
+        return 4.0  # High value for continuing a course
+    else:
+        return 2.0  # Default value for unknown interaction types
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -141,8 +222,11 @@ def create_student_course_interaction(db: Session, student_id: int, interaction:
     Creates a new interaction record for a student.
     - If course_id is provided, it's a course interaction.
     - If topic is provided, it's a topic interaction.
+    Now includes automatic topic extraction from courses and proper value assignment.
     """
     course_type = None
+    extracted_topic = interaction.topic  # Use provided topic if available
+    
     if interaction.course_id:
         course, c_type = get_course_by_id(db, interaction.course_id)
         if not course:
@@ -151,13 +235,23 @@ def create_student_course_interaction(db: Session, student_id: int, interaction:
                 detail=f"Course with ID '{interaction.course_id}' not found."
             )
         course_type = c_type
+        
+        # Extract topic from course if not provided
+        if not extracted_topic:
+            extracted_topic = extract_topic_from_course(course, course_type)
+    
+    # Ensure every interaction has a value
+    interaction_value = interaction.value if interaction.value is not None else get_interaction_value(
+        interaction.interaction_type, 
+        course if interaction.course_id else None
+    )
 
     db_interaction = models.StudentCourseInteraction(
         student_id=student_id,
         course_id=str(interaction.course_id) if interaction.course_id else None,
-        topic=interaction.topic,
+        topic=extracted_topic,  # Now always populated for course interactions
         interaction_type=interaction.interaction_type,
-        value=interaction.value,
+        value=interaction_value,  # Now always has a meaningful value
         course_type=course_type
     )
     db.add(db_interaction)
@@ -299,41 +393,66 @@ def get_student_playlist_progress(db: Session, student_id: int):
 
 def search_courses_by_query(db: Session, query: str, course_type: str = "all") -> List[schemas.Course]:
     """
-    Performs a case-insensitive search and maps results to the unified Course schema.
+    Performs a simple case-insensitive search on course titles and descriptions.
     Can filter by course_type: "internal", "external", or "all".
     """
     results = []
 
-    # Search and map External Courses
+    # Search External Courses (title and description only)
     if course_type in ["all", "external"]:
-        external_courses = db.query(models.ExternalCourse).filter(
-            models.ExternalCourse.title.ilike(f"%{query}%")
-        ).all()
-        for course in external_courses:
-            results.append(schemas.Course(
-                id=course.item_id,
-                title=course.title,
-                description=course.description,
-                url=course.url,
-                provider=course.provider,
-                course_type='external',
-                skills=_parse_skills(course.skills)
-            ))
+        try:
+            external_courses = db.query(models.ExternalCourse).filter(
+                or_(
+                    models.ExternalCourse.title.ilike(f"%{query}%"),
+                    models.ExternalCourse.description.ilike(f"%{query}%")
+                )
+            ).limit(50).all()  # Limit results to avoid performance issues
+            
+            for course in external_courses:
+                # Parse skills safely
+                skills = []
+                try:
+                    skills = _parse_skills(course.skills)
+                except:
+                    skills = []
+                    
+                results.append(schemas.Course(
+                    id=course.item_id,
+                    title=course.title,
+                    description=course.description or "",
+                    url=course.url or "",
+                    provider=course.provider or "Unknown",
+                    course_type='external',
+                    skills=skills,
+                    rating=course.adjusted_rating if course.adjusted_rating else 0.0,
+                    level=course.level or "All Levels",
+                    duration=course.duration or 0
+                ))
+        except Exception as e:
+            print(f"Error searching external courses: {e}")
 
-    # Search and map Internal Courses
+    # Search Internal Courses (playlist titles only)
     if course_type in ["all", "internal"]:
-        internal_courses = db.query(models.InternalCourse).filter(
-            models.InternalCourse.playlist_title.ilike(f"%{query}%")
-        ).all()
-        for course in internal_courses:
-            results.append(schemas.Course(
-                id=str(course.id),
-                title=course.playlist_title,
-                description=f"A playlist of YouTube videos on {course.playlist_title}.",
-                url=course.playlist_url,
-                provider="YouTube",
-                course_type='internal',
-                skills=[]
-            ))
+        try:
+            internal_courses = db.query(models.InternalCourse).filter(
+                models.InternalCourse.playlist_title.ilike(f"%{query}%")
+            ).limit(50).all()
+            
+            # Group by playlist to avoid duplicates
+            playlists_seen = set()
+            for course in internal_courses:
+                if course.playlist_title and course.playlist_title not in playlists_seen:
+                    playlists_seen.add(course.playlist_title)
+                    results.append(schemas.Course(
+                        id=str(course.id),
+                        title=course.playlist_title,
+                        description=f"A playlist of YouTube videos on {course.playlist_title}.",
+                        url=course.playlist_url or "",
+                        provider="YouTube",
+                        course_type='internal',
+                        skills=[]
+                    ))
+        except Exception as e:
+            print(f"Error searching internal courses: {e}")
         
     return results 

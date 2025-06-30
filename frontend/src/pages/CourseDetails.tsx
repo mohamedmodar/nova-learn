@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
@@ -16,8 +15,10 @@ import {
   Play,
   ExternalLink,
   Heart,
-  Share
+  Share,
+  ThumbsDown
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface CourseDetail {
   id: string;
@@ -45,6 +46,79 @@ const CourseDetails = () => {
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEnrolled, setIsEnrolled] = useState(false);
+
+  // Helper function to log interactions
+  const logInteraction = async (courseId: string, interactionType: string, value?: number) => {
+    try {
+      const token = localStorage.getItem('novalearn_token');
+      if (!token) return; // Don't log if user is not authenticated
+
+      await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          course_id: courseId, 
+          interaction_type: interactionType,
+          value: value 
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to log interaction:', error);
+    }
+  };
+
+  const handleLike = async () => {
+    if (!id) return;
+    try {
+      const token = localStorage.getItem('novalearn_token');
+      if (!token) {
+        toast.error("You must be logged in to like a course.");
+        return;
+      }
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: id, interaction_type: 'like' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save like.");
+      }
+      toast.success("Thanks for your feedback!");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
+  };
+
+  const handleDislike = async () => {
+    if (!id) return;
+    try {
+      const token = localStorage.getItem('novalearn_token');
+      if (!token) {
+        toast.error("You must be logged in to dislike a course.");
+        return;
+      }
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: id, interaction_type: 'dislike' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save dislike.");
+      }
+      toast.success("Feedback saved!");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
+  };
 
   useEffect(() => {
     const fetchCourseDetails = async () => {
@@ -88,6 +162,8 @@ const CourseDetails = () => {
       setCourse(mockCourse);
       setIsEnrolled(!!mockCourse.progress);
       setLoading(false);
+
+      // Removed automatic view_details logging
     };
 
     fetchCourseDetails();
@@ -117,10 +193,18 @@ const CourseDetails = () => {
   const handleEnroll = () => {
     setIsEnrolled(true);
     console.log('Enrolled in course:', course.id);
+    // Log enrollment interaction
+    if (course.id) {
+      logInteraction(course.id, 'enroll');
+    }
   };
 
   const handleContinue = () => {
     console.log('Continue course:', course.id);
+    // Log continue interaction
+    if (course.id) {
+      logInteraction(course.id, 'continue');
+    }
   };
 
   return (
@@ -150,8 +234,11 @@ const CourseDetails = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={handleLike} className="hover:text-red-500">
                       <Heart className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleDislike} className="hover:text-gray-600">
+                      <ThumbsDown className="h-4 w-4" />
                     </Button>
                     <Button variant="outline" size="sm">
                       <Share className="h-4 w-4" />

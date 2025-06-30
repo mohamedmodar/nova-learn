@@ -238,17 +238,15 @@ const AboutUs = () => {
         <div>
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-4">Graduation Project Team</h2>
-            <p className="text-lg text-gray-600">
-              Computer Science Students - Faculty of Computers and Artificial Intelligence, Cairo University
-            </p>
+          
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[
-              { name: "Anas Ahmed", id: "2018170104", role: "ML Engineer & Backend Developer" },
-              { name: "Mostafa Maher", id: "2017170439", role: "Frontend Developer & UI/UX" },
-              { name: "Ahmed Ali", id: "2015170027", role: "Data Scientist & Model Development" },
-              { name: "Ahmed Ashraf", id: "2018170016", role: "Full-Stack Developer & Integration" }
+              { name: "Anas Ahmed", id: "2018170104", role: "Team Leader"  },
+              { name: "Mostafa Maher", id: "2017170439" },
+              { name: "Ahmed Ali", id: "2015170027" },
+              { name: "Ahmed Ashraf", id: "2018170016" }
             ].map((member, index) => (
               <Card key={index} className="text-center p-6 hover:shadow-lg transition-shadow">
                 <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">

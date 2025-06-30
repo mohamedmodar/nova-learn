@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BookOpen, Clock, Star, ExternalLink, Search, Users, GraduationCap, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown, ListVideo, PlayCircle } from 'lucide-react';
+import CourseCard, { Course as SharedCourse } from '../components/shared/CourseCard';
+import { toast } from 'sonner';
 
 interface Course {
   id: string;
@@ -29,8 +31,10 @@ interface Course {
 const Courses = () => {
   const navigate = useNavigate();
   const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [searchResults, setSearchResults] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -48,6 +52,83 @@ const Courses = () => {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
   };
+
+  // Function to search courses using the API
+  const searchCourses = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const token = localStorage.getItem('novalearn_token');
+      const headers: any = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add auth header if user is logged in (for interaction logging)
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`http://localhost:8000/search/all?query=${encodeURIComponent(query)}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to search courses');
+      }
+
+      const apiResults = await response.json();
+      
+      // Transform API results to match our Course interface
+      const transformedResults: Course[] = apiResults.map((c: any) => {
+        const isExternal = c.course_type === 'external';
+        const skills = Array.isArray(c.skills) ? c.skills : [];
+        
+        return {
+          id: c.id,
+          title: c.title || 'Untitled Course',
+          description: c.description || 'No description available',
+          provider: c.provider || (isExternal ? 'Unknown' : 'University'),
+          level: isExternal ? (capitalizeWords(c.level) || 'All Levels') : 'University Level',
+          duration: c.duration ? `${c.duration} hours` : undefined,
+          skills: skills,
+          isExternal: isExternal,
+          rating: c.rating || 0,
+          category: skills.length > 0 ? skills[0] : (isExternal ? 'General' : 'University'),
+          url: c.url || '',
+          playlist_title: isExternal ? undefined : c.title,
+        };
+      });
+
+      setSearchResults(transformedResults);
+      console.log(`🔍 Search completed: Found ${transformedResults.length} results for "${query}"`);
+    } catch (error) {
+      console.error("Failed to search courses:", error);
+      toast.error("Failed to search courses. Please try again.");
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm.trim()) {
+        searchCourses(searchTerm);
+      } else {
+        setSearchResults([]);
+        setIsSearching(false);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   useEffect(() => {
     const fetchAllCourses = async () => {
@@ -123,27 +204,28 @@ const Courses = () => {
     fetchAllCourses();
   }, []);
 
+  // Filter courses based on search results or all courses
   useEffect(() => {
-    let filtered = allCourses;
+    // Use search results if searching, otherwise use all courses
+    const coursesToFilter = searchTerm.trim() ? searchResults : allCourses;
+    let filtered = coursesToFilter;
 
-    if (searchTerm) {
-      filtered = filtered.filter(course =>
-        (course.title?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (course.description?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (Array.isArray(course.skills) && course.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase())))
-      );
-    }
-
+    // Apply level filter
     if (selectedLevel !== 'all') {
       filtered = filtered.filter(course => course.level === selectedLevel);
     }
 
+    // Apply category filter
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(course => course.category === selectedCategory);
     }
 
     setFilteredCourses(filtered);
-  }, [searchTerm, selectedLevel, selectedCategory, allCourses]);
+    
+    // Reset pagination when filters change
+    setInternalPage(1);
+    setExternalPage(1);
+  }, [searchResults, allCourses, selectedLevel, selectedCategory, searchTerm]);
 
   const handleCourseClick = (course: Course) => {
     if (course.isExternal) {
@@ -164,6 +246,70 @@ const Courses = () => {
 
   const categories = ['all', ...Array.from(new Set(allCourses.map(course => course.category).filter(Boolean)))];
   const levels = ['all', ...Array.from(new Set(allCourses.map(course => course.level).filter(Boolean)))];
+
+  // Transform Course to SharedCourse for the CourseCard component
+  const transformToSharedCourse = (course: Course): SharedCourse => ({
+    id: course.id,
+    item_id: course.id,
+    title: course.title,
+    description: course.description,
+    provider: course.provider,
+    url: course.url || '',
+    level: course.level,
+    skills: course.skills,
+    duration: course.duration ? parseInt(course.duration.split(' ')[0]) || 0 : 0,
+    rating: course.rating,
+    course_type: course.isExternal ? 'external' : 'internal',
+    playlist_title: course.playlist_title,
+  });
+
+  const handleLike = async (courseId: string) => {
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) {
+      toast.error("You must be logged in to like a course.");
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: courseId, interaction_type: 'like' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save like.");
+      }
+      toast.success("Thanks for your feedback!");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
+  };
+
+  const handleDislike = async (courseId: string) => {
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) {
+      toast.error("You must be logged in to dislike a course.");
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: courseId, interaction_type: 'dislike' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save dislike.");
+      }
+      toast.success("Feedback saved!");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
+  };
 
   if (loading) {
     return (
@@ -219,15 +365,34 @@ const Courses = () => {
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <div className="relative col-span-1 md:col-span-2">
-              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">Search Courses</label>
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+                Search Courses
+                {isSearching && (
+                  <span className="ml-2 text-xs text-blue-600 inline-flex items-center">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></div>
+                    Searching...
+                  </span>
+                )}
+              </label>
               <Search className="absolute left-3 bottom-2.5 h-4 w-4 text-gray-400" />
               <Input
                 id="search"
-                placeholder="e.g., Python, Data Science"
+                placeholder="e.g., Python, Data Science, Machine Learning"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
+              {searchTerm && (
+                <div className="mt-2 text-xs text-gray-600">
+                  {isSearching ? (
+                    "Searching database..."
+                  ) : searchResults.length > 0 ? (
+                    `Found ${searchResults.length} results for "${searchTerm}"`
+                  ) : searchTerm.trim() ? (
+                    `No results found for "${searchTerm}"`
+                  ) : null}
+                </div>
+              )}
             </div>
             <div>
               <label htmlFor="level" className="block text-sm font-medium text-gray-700 mb-1">Filter by Level</label>
@@ -268,7 +433,13 @@ const Courses = () => {
             <TabsTrigger value="internal">University Courses ({internalCourses.length.toLocaleString()})</TabsTrigger>
           </TabsList>
           <TabsContent value="external" className="mt-4">
-            <CourseGrid courses={paginatedExternal} onCourseClick={() => {}} />
+            <CourseGrid 
+              courses={paginatedExternal} 
+              onCourseClick={() => {}}
+              transformToSharedCourse={transformToSharedCourse}
+              handleLike={handleLike}
+              handleDislike={handleDislike}
+            />
             <PaginationControls
               currentPage={externalPage}
               totalPages={totalExternalPages}
@@ -277,7 +448,13 @@ const Courses = () => {
             />
           </TabsContent>
           <TabsContent value="internal" className="mt-4">
-            <CourseGrid courses={paginatedInternal} onCourseClick={handleCourseClick} />
+            <CourseGrid 
+              courses={paginatedInternal} 
+              onCourseClick={handleCourseClick}
+              transformToSharedCourse={transformToSharedCourse}
+              handleLike={handleLike}
+              handleDislike={handleDislike}
+            />
              <PaginationControls
               currentPage={internalPage}
               totalPages={totalInternalPages}
@@ -299,7 +476,19 @@ const Courses = () => {
   );
 };
 
-const CourseGrid = ({ courses, onCourseClick }: { courses: Course[], onCourseClick: (course: Course) => void }) => {
+const CourseGrid = ({ 
+  courses, 
+  onCourseClick, 
+  transformToSharedCourse, 
+  handleLike, 
+  handleDislike 
+}: { 
+  courses: Course[], 
+  onCourseClick: (course: Course) => void,
+  transformToSharedCourse: (course: Course) => SharedCourse,
+  handleLike: (courseId: string) => void,
+  handleDislike: (courseId: string) => void
+}) => {
   if (courses.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
@@ -311,7 +500,12 @@ const CourseGrid = ({ courses, onCourseClick }: { courses: Course[], onCourseCli
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {courses.map((course) => (
-        <CourseCard key={course.id} course={course} onCourseClick={onCourseClick} />
+        <CourseCard 
+          key={course.id} 
+          course={transformToSharedCourse(course)} 
+          onLike={() => handleLike(course.id)}
+          onDislike={() => handleDislike(course.id)}
+        />
       ))}
     </div>
   );
@@ -344,127 +538,6 @@ const PaginationControls = ({ currentPage, totalPages, onPageChange }: { current
         <ChevronRight className="h-4 w-4 ml-1" />
       </Button>
     </div>
-  );
-};
-
-const CourseCard: React.FC<{ course: Course; onCourseClick: (course: Course) => void }> = ({ course, onCourseClick }) => {
-  const handleCardClick = () => {
-    if (!course.isExternal) {
-      onCourseClick(course);
-    }
-  };
-
-  return (
-    <Card 
-      onClick={handleCardClick}
-      className={`hover:shadow-lg transition-all duration-200 group flex flex-col ${!course.isExternal ? 'cursor-pointer' : ''}`}
-    >
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex-1 mr-2">
-            <div className="flex items-center space-x-2 mb-2">
-              {course.isExternal ? (
-                <ExternalLink className="h-4 w-4 text-green-600" />
-              ) : (
-                <GraduationCap className="h-4 w-4 text-blue-600" />
-              )}
-              <Badge variant={course.isExternal ? "default" : "secondary"}>
-                {course.provider}
-              </Badge>
-            </div>
-            <CardTitle className="text-base font-bold leading-snug group-hover:text-blue-600 transition-colors">
-              {course.title}
-            </CardTitle>
-          </div>
-          {course.level && <Badge variant="outline" className="flex-shrink-0">{course.level}</Badge>}
-        </div>
-        <CardDescription className="line-clamp-2 text-sm mt-2">
-          {course.description}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex-grow flex flex-col justify-end">
-        {Array.isArray(course.skills) && course.skills.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-4">
-            {course.skills.slice(0, 3).map((skill, index) => (
-              <Badge key={index} variant="outline" className="text-xs font-normal">
-                {skill}
-              </Badge>
-            ))}
-            {course.skills.length > 3 && (
-              <Badge variant="outline" className="text-xs font-normal">
-                +{course.skills.length - 3} more
-              </Badge>
-            )}
-          </div>
-        )}
-        <div className="border-t pt-3 mt-auto">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <div className="flex items-center space-x-3">
-              {course.video_count && (
-                <div className="flex items-center gap-1">
-                  <ListVideo className="h-3 w-3" />
-                  <span>{course.video_count} videos</span>
-                </div>
-              )}
-              {course.duration && (
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  <span>{course.duration}</span>
-                </div>
-              )}
-              {course.rating != null && (
-                <div className="flex items-center gap-1">
-                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                  <span>{course.rating.toFixed(1)}</span>
-                </div>
-              )}
-              {course.num_reviews != null && (
-                <div className="flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  <span>{course.num_reviews.toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center">
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <ThumbsUp className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <ThumbsDown className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          {course.isExternal && course.url && (
-            <Button
-              asChild
-              className="w-full mt-3 bg-green-600 hover:bg-green-700"
-            >
-              <a 
-                href={course.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View on Provider
-              </a>
-            </Button>
-          )}
-          {!course.isExternal && (
-            <Button
-              onClick={(e) => {
-                  e.stopPropagation();
-                  onCourseClick(course);
-              }}
-              className="w-full mt-3 bg-blue-600 hover:bg-blue-700"
-            >
-              <PlayCircle className="h-4 w-4 mr-2" />
-              View Playlist
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 };
 

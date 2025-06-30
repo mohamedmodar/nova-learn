@@ -41,9 +41,12 @@ def update_student_video_progress(
 
     # Log the interaction
     interaction_type = "video_complete" if progress_update.completed else "video_uncomplete"
+    interaction_value = 5.0 if progress_update.completed else 2.0  # High value for completion, lower for uncomplete
+    
     interaction = schemas.StudentCourseInteractionCreate(
         course_id=str(progress_update.video_id),
-        interaction_type=interaction_type
+        interaction_type=interaction_type,
+        value=interaction_value
     )
     crud.create_student_course_interaction(db, student_id=current_student.id, interaction=interaction)
 

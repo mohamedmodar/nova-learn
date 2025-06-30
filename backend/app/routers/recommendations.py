@@ -53,12 +53,34 @@ def get_course_recommendations(
     # Source B: Student's recent interactions (search and chat topics)
     all_interactions = crud.get_student_interactions(db, student_id=current_student.id)
     
-    # Separate learned topics from course likes/dislikes
-    learned_topics = [i.topic for i in all_interactions if i.topic]
-    if learned_topics:
-        learned_topics_str = " ".join(learned_topics)
-        profile_query_parts.append(learned_topics_str)
-        print(f"[API] Found {len(learned_topics)} learned topics from interactions. Adding to query.")
+    # Prioritize high-value interactions and give more weight to liked topics
+    high_value_topics = []
+    medium_value_topics = []
+    
+    # Separate interactions by value to prioritize them
+    for i in all_interactions:
+        if i.topic:
+            # Handle None values by treating them as 0
+            value = i.value if i.value is not None else 0
+            if i.interaction_type == 'like' and value >= 5.0:
+                # Give liked topics 8x weight to heavily prioritize user preferences
+                high_value_topics.extend([i.topic] * 8)
+            elif i.interaction_type in ['chat_topic', 'click'] and value >= 3.0:
+                # Medium priority topics
+                medium_value_topics.extend([i.topic] * 2)
+            elif i.interaction_type in ['search', 'hover'] and value >= 2.0:
+                # Lower priority topics
+                medium_value_topics.append(i.topic)
+    
+    # Combine prioritized topics
+    prioritized_topics = high_value_topics + medium_value_topics
+    
+    if prioritized_topics:
+        prioritized_topics_str = " ".join(prioritized_topics)
+        profile_query_parts.append(prioritized_topics_str)
+        print(f"[API] Found {len(high_value_topics)} high-value topics (likes) and {len(medium_value_topics)} medium-value topics.")
+        print(f"[API] High-value topics: {list(set(high_value_topics))}")
+        print(f"[API] Prioritized query components: {prioritized_topics_str[:200]}...")  # Show first 200 chars
 
     # Source C: The query from the request body (for specific, one-off searches)
     if request_data.query_text:
@@ -82,6 +104,14 @@ def get_course_recommendations(
     # 3. Call the recommendation model
     try:
         print("[API] Calling the recommendation model...")
+        
+        # Force content-based model for users with strong preferences (5+ likes)
+        # This prioritizes user preferences over global popularity
+        model_type = request_data.model_type
+        if len(user_history) >= 5 and model_type == 'hybrid':
+            model_type = 'content_based'
+            print(f"[API] User has {len(user_history)} likes - switching to content_based model for better personalization")
+        
         recommendations_df = get_recommendations(
             query_text=final_query_text,
             level=request_data.level,
@@ -90,7 +120,7 @@ def get_course_recommendations(
             top_n=request_data.top_n,
             user_history=user_history,
             disliked_history=disliked_history,
-            model_type=request_data.model_type,
+            model_type=model_type,
             duration_pref=request_data.duration_pref
         )
         

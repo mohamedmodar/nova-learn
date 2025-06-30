@@ -17,43 +17,43 @@ const Home = () => {
   const [recommendations, setRecommendations] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchRecommendations = async () => {
-      if (!user) return;
-      setLoading(true);
-      try {
-        const token = localStorage.getItem('novalearn_token');
-        const response = await fetch('http://localhost:8000/recommendations/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ top_n: 6 }), // Fetch 6 recommendations for the homepage
-        });
+  const fetchRecommendations = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('novalearn_token');
+      const response = await fetch('http://localhost:8000/recommendations/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ top_n: 6 }), // Fetch 6 recommendations for the homepage
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch recommendations');
-        }
-
-        const data = await response.json();
-        
-        const transformedCourses: Course[] = data.map((c: any) => ({
-          ...c,
-          id: c.item_id || c.id.toString(),
-          course_type: 'external' // Recommendations are currently only external
-        }));
-        
-        setRecommendations(transformedCourses);
-
-      } catch (error) {
-        console.error("Failed to fetch recommendations:", error);
-        toast.error("Could not load recommendations.");
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error('Failed to fetch recommendations');
       }
-    };
 
+      const data = await response.json();
+      
+      const transformedCourses: Course[] = data.map((c: any) => ({
+        ...c,
+        id: c.item_id || c.id.toString(),
+        course_type: 'external' // Recommendations are currently only external
+      }));
+      
+      setRecommendations(transformedCourses);
+
+    } catch (error) {
+      console.error("Failed to fetch recommendations:", error);
+      toast.error("Could not load recommendations.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (user) {
         fetchRecommendations();
     } else {
@@ -87,7 +87,37 @@ const Home = () => {
       if (!response.ok) {
         throw new Error("Failed to save like.");
       }
-      toast.success("Thanks for your feedback!");
+      toast.success("Thanks for your feedback! Updating recommendations...");
+      
+      // Refresh recommendations after like
+      fetchRecommendations();
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
+  };
+
+  const handleDislike = async (courseId: string) => {
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) {
+      toast.error("You must be logged in to dislike a course.");
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: courseId, interaction_type: 'dislike' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save dislike.");
+      }
+      toast.success("Feedback saved! Updating recommendations...");
+      
+      // Refresh recommendations after dislike
+      fetchRecommendations();
     } catch (error: any) {
       toast.error(error.message || "Could not save feedback.");
     }
@@ -120,6 +150,7 @@ const Home = () => {
                         key={course.id} 
                         course={course}
                         onLike={handleLike}
+                        onDislike={handleDislike}
                     />
                 ))}
                 </div>

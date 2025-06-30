@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, Clock, Star, ExternalLink } from 'lucide-react';
+import { Heart, Clock, Star, ExternalLink, ThumbsDown } from 'lucide-react';
+import { toast } from 'sonner';
 
 // Adjusted Course type to be more flexible
 export interface Course {
@@ -22,6 +23,7 @@ export interface Course {
 interface CourseCardProps {
   course: Course;
   onLike?: (courseId: string) => void;
+  onDislike?: (courseId: string) => void;
 }
 
 // Helper to safely get properties
@@ -29,8 +31,32 @@ const getSafe = <T, K extends keyof T>(obj: T, key: K, defaultValue: any = ''): 
     return obj && typeof obj === 'object' && key in obj ? obj[key] : defaultValue;
 };
 
-const CourseCard: React.FC<CourseCardProps> = ({ course, onLike }) => {
+// Helper function to log interactions
+const logInteraction = async (courseId: string, interactionType: string, value?: number) => {
+  try {
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) return; // Don't log if user is not authenticated
+
+    await fetch('http://localhost:8000/interactions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ 
+        course_id: courseId, 
+        interaction_type: interactionType,
+        value: value 
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to log interaction:', error);
+  }
+};
+
+const CourseCard: React.FC<CourseCardProps> = ({ course, onLike, onDislike }) => {
   const navigate = useNavigate();
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   if (!course || !course.item_id) {
     console.error("CourseCard received an invalid course object:", course);
@@ -61,7 +87,29 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, onLike }) => {
   const courseId = course.id || course.item_id;
   const isExternal = course.course_type === 'external';
 
+  const handleMouseEnter = () => {
+    // Log hover after 3 seconds of hovering (increased from 2 seconds)
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (courseId) {
+        logInteraction(String(courseId), 'hover');
+      }
+    }, 3000); // Increased to 3 seconds for more meaningful interaction
+  };
+
+  const handleMouseLeave = () => {
+    // Clear hover timeout if mouse leaves before 3 seconds
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  };
+
   const handleCardClick = () => {
+    // Log click interaction
+    if (courseId) {
+      logInteraction(String(courseId), 'click');
+    }
+
     if (isExternal && course.url) {
       window.open(course.url, '_blank', 'noopener,noreferrer');
     } else if (course.playlist_title) {
@@ -69,10 +117,67 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, onLike }) => {
     }
   };
   
-  const handleLikeClick = (e: React.MouseEvent) => {
+  const handleLikeClick = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click when liking
-    if (onLike && courseId) {
-      onLike(courseId);
+    if (courseId) {
+      // Use custom onLike callback if provided, otherwise use default API call
+      if (onLike) {
+        onLike(String(courseId));
+      } else {
+        try {
+          const token = localStorage.getItem('novalearn_token');
+          if (!token) {
+            toast.error("You must be logged in to like a course.");
+            return;
+          }
+          const response = await fetch('http://localhost:8000/interactions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ course_id: String(courseId), interaction_type: 'like' }),
+          });
+          if (!response.ok) {
+            throw new Error("Failed to save like.");
+          }
+          toast.success("Thanks for your feedback!");
+        } catch (error: any) {
+          toast.error(error.message || "Could not save feedback.");
+        }
+      }
+    }
+  };
+
+  const handleDislikeClick = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click when disliking
+    if (courseId) {
+      // Use custom onDislike callback if provided, otherwise use default API call
+      if (onDislike) {
+        onDislike(String(courseId));
+      } else {
+        try {
+          const token = localStorage.getItem('novalearn_token');
+          if (!token) {
+            toast.error("You must be logged in to dislike a course.");
+            return;
+          }
+          const response = await fetch('http://localhost:8000/interactions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ course_id: String(courseId), interaction_type: 'dislike' }),
+          });
+          if (!response.ok) {
+            throw new Error("Failed to save dislike.");
+          }
+          toast.success("Feedback saved!");
+        } catch (error: any) {
+          toast.error(error.message || "Could not save feedback.");
+        }
+      }
     }
   };
 
@@ -82,21 +187,32 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, onLike }) => {
     <Card 
       className="hover:shadow-lg transition-shadow cursor-pointer flex flex-col"
       onClick={handleCardClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <CardHeader>
         <div className="flex items-start justify-between">
           <CardTitle className="text-lg flex-grow pr-2">{title || course.playlist_title}</CardTitle>
-          {onLike && (
+          <div className="flex gap-1 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={handleLikeClick}
-              className="text-gray-400 hover:text-red-500 flex-shrink-0"
+              className="text-gray-400 hover:text-red-500"
               aria-label="Like course"
             >
-              <Heart className="h-5 w-5" />
+              <Heart className="h-4 w-4" />
             </Button>
-          )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDislikeClick}
+              className="text-gray-400 hover:text-gray-600"
+              aria-label="Dislike course"
+            >
+              <ThumbsDown className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <CardDescription className="line-clamp-2">{description}</CardDescription>
       </CardHeader>

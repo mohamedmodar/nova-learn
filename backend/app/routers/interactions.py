@@ -21,7 +21,8 @@ def log_course_interaction(
     Log a student's interaction with a course.
 
     This endpoint automatically determines the course type (internal/external)
-    based on the `course_id`'s data type and validates that the course exists.
+    based on the `course_id`'s data type, validates that the course exists,
+    extracts topics from the course, and assigns appropriate values for personalization.
     """
     course_id = interaction_data.course_id
     
@@ -45,12 +46,17 @@ def log_course_interaction(
             detail=f"{course_type.capitalize()} course with ID {course_id} not found."
         )
 
+    # Assign a default value if none provided, based on interaction type
+    interaction_value = interaction_data.value
+    if interaction_value is None:
+        interaction_value = crud.get_interaction_value(interaction_data.interaction_type, course)
+
     # Construct the full interaction object for the database
     full_interaction = schemas.StudentCourseInteractionCreate(
         course_type=course_type,
         course_id=str(course_id), # Ensure course_id is a string for the DB
         interaction_type=interaction_data.interaction_type,
-        value=interaction_data.value
+        value=interaction_value  # Now always has a meaningful value
     )
     
     return crud.create_student_course_interaction(

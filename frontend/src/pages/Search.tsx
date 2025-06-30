@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { Input } from '@/components/ui/input';
@@ -17,26 +16,16 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-interface Course {
-  id: string;
-  title: string;
-  description: string;
-  provider: string;
-  level: string;
-  rating: number;
-  adjustedRating: number;
-  duration: string;
-  skills: string[];
-  isExternal: boolean;
-}
+import CourseCard, { Course } from '../components/shared/CourseCard';
+import { toast } from 'sonner';
 
 const SearchPage = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   
   // Filter states
@@ -49,90 +38,93 @@ const SearchPage = () => {
   const levels = ['Beginner', 'Intermediate', 'Advanced'];
   const skills = ['Python', 'JavaScript', 'React', 'Machine Learning', 'Data Science', 'Web Development'];
 
-  useEffect(() => {
-    const fetchCourses = async () => {
-      // Mock API call
-      const mockCourses: Course[] = [
-        {
-          id: '3',
-          title: 'Complete React Developer Course',
-          description: 'Build modern web applications with React, Redux, and more',
-          provider: 'Udemy',
-          level: 'Intermediate',
-          rating: 4.6,
-          adjustedRating: 4.8,
-          duration: '40 hours',
-          skills: ['React', 'JavaScript', 'Redux', 'Web Development'],
-          isExternal: true
-        },
-        {
-          id: '4',
-          title: 'Python for Data Science',
-          description: 'Master Python programming for data analysis and visualization',
-          provider: 'Coursera',
-          level: 'Beginner',
-          rating: 4.4,
-          adjustedRating: 4.6,
-          duration: '6 weeks',
-          skills: ['Python', 'Data Analysis', 'Pandas', 'NumPy'],
-          isExternal: true
-        },
-        {
-          id: '5',
-          title: 'Machine Learning A-Z',
-          description: 'Hands-on machine learning with Python and R',
-          provider: 'Udemy',
-          level: 'Advanced',
-          rating: 4.5,
-          adjustedRating: 4.7,
-          duration: '44 hours',
-          skills: ['Machine Learning', 'Python', 'Statistics', 'AI'],
-          isExternal: true
-        },
-        {
-          id: '6',
-          title: 'Full Stack Web Development',
-          description: 'Complete guide to modern web development',
-          provider: 'University',
-          level: 'Intermediate',
-          rating: 4.3,
-          adjustedRating: 4.3,
-          duration: '16 weeks',
-          skills: ['JavaScript', 'Node.js', 'React', 'MongoDB'],
-          isExternal: false
-        },
-        {
-          id: '7',
-          title: 'Introduction to AI',
-          description: 'Fundamentals of artificial intelligence and neural networks',
-          provider: 'edX',
-          level: 'Beginner',
-          rating: 4.2,
-          adjustedRating: 4.4,
-          duration: '8 weeks',
-          skills: ['AI', 'Machine Learning', 'Neural Networks'],
-          isExternal: true
-        }
-      ];
+  // Function to perform search and log interaction
+  const performSearch = async (query: string) => {
+    if (!query.trim()) {
+      setCourses([]);
+      setFilteredCourses([]);
+      return;
+    }
 
-      setCourses(mockCourses);
-      setFilteredCourses(mockCourses);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('novalearn_token');
+      
+      // Search all courses
+      const response = await fetch(`http://localhost:8000/search/all?query=${encodeURIComponent(query)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to search courses');
+      }
+
+      const data = await response.json();
+      
+      const transformedCourses: Course[] = data.map((c: any) => ({
+        id: c.id || c.item_id,
+        item_id: c.item_id || c.id,
+        title: c.title,
+        description: c.description,
+        provider: c.provider || c.course_type,
+        level: c.level || 'All Levels',
+        rating: c.rating || c.adjusted_rating || 0,
+        url: c.url || '',
+        skills: Array.isArray(c.skills) ? c.skills : [],
+        duration: c.duration || 0,
+        course_type: c.course_type || 'external',
+      }));
+      
+      setCourses(transformedCourses);
+      setFilteredCourses(transformedCourses);
+
+    } catch (error) {
+      console.error("Failed to search courses:", error);
+      setError("Failed to search courses. Please try again.");
+      setCourses([]);
+      setFilteredCourses([]);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    fetchCourses();
+  // Handle search input changes with debouncing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim()) {
+        performSearch(searchQuery);
+      } else {
+        setCourses([]);
+        setFilteredCourses([]);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // Remove the old mock data useEffect and replace with empty one
+  useEffect(() => {
+    // Initial empty state
+    setCourses([]);
+    setFilteredCourses([]);
   }, []);
 
   useEffect(() => {
     let filtered = courses.filter(course => {
       const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           course.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
+                           course.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           (Array.isArray(course.skills) && course.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase())));
       
-      const matchesProvider = selectedProviders.length === 0 || selectedProviders.includes(course.provider);
-      const matchesLevel = selectedLevels.length === 0 || selectedLevels.includes(course.level);
+      const matchesProvider = selectedProviders.length === 0 || (course.provider && selectedProviders.includes(course.provider));
+      const matchesLevel = selectedLevels.length === 0 || (course.level && selectedLevels.includes(course.level));
       const matchesSkills = selectedSkills.length === 0 || 
-                           selectedSkills.some(skill => course.skills.includes(skill));
+                           (Array.isArray(course.skills) && selectedSkills.some(skill => course.skills.includes(skill)));
 
       return matchesSearch && matchesProvider && matchesLevel && matchesSkills;
     });
@@ -141,11 +133,11 @@ const SearchPage = () => {
     filtered = filtered.sort((a, b) => {
       switch (sortBy) {
         case 'rating':
-          return b.adjustedRating - a.adjustedRating;
+          return (b.rating || 0) - (a.rating || 0);
         case 'title':
           return a.title.localeCompare(b.title);
         case 'duration':
-          return a.duration.localeCompare(b.duration);
+          return (a.duration || 0) - (b.duration || 0);
         default:
           return 0;
       }
@@ -153,6 +145,54 @@ const SearchPage = () => {
 
     setFilteredCourses(filtered);
   }, [searchQuery, courses, selectedProviders, selectedLevels, selectedSkills, sortBy]);
+
+  const handleLike = async (courseId: string) => {
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) {
+      toast.error("You must be logged in to like a course.");
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: courseId, interaction_type: 'like' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save like.");
+      }
+      toast.success("Thanks for your feedback!");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
+  };
+
+  const handleDislike = async (courseId: string) => {
+    const token = localStorage.getItem('novalearn_token');
+    if (!token) {
+      toast.error("You must be logged in to dislike a course.");
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/interactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ course_id: courseId, interaction_type: 'dislike' }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save dislike.");
+      }
+      toast.success("Feedback saved!");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save feedback.");
+    }
+  };
 
   const handleProviderChange = (provider: string, checked: boolean) => {
     if (checked) {
@@ -318,71 +358,12 @@ const SearchPage = () => {
 
             <div className="space-y-4">
               {filteredCourses.map((course) => (
-                <Card key={course.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="secondary">{course.provider}</Badge>
-                          <Badge>{course.level}</Badge>
-                        </div>
-                        <CardTitle className="text-lg mb-2">{course.title}</CardTitle>
-                        <CardDescription className="line-clamp-2">
-                          {course.description}
-                        </CardDescription>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-400 hover:text-red-500"
-                      >
-                        <Heart className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap gap-1">
-                        {course.skills.slice(0, 4).map((skill) => (
-                          <Badge key={skill} variant="outline" className="text-xs">
-                            {skill}
-                          </Badge>
-                        ))}
-                        {course.skills.length > 4 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{course.skills.length - 4} more
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            {course.adjustedRating}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {course.duration}
-                          </div>
-                        </div>
-                        <Button 
-                          onClick={() => navigate(`/course/${course.id}`)}
-                          className={course.isExternal ? "bg-green-600 hover:bg-green-700" : ""}
-                        >
-                          {course.isExternal ? (
-                            <>
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              View Course
-                            </>
-                          ) : (
-                            'View Details'
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  onLike={() => handleLike(course.id)}
+                  onDislike={() => handleDislike(course.id)}
+                />
               ))}
 
               {filteredCourses.length === 0 && (
