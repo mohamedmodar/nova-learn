@@ -61,7 +61,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             to="/home"
             className="flex items-center gap-2 text-lg font-semibold md:text-base"
           >
-            <GraduationCap className="h-6 w-6" />
+            <img src="nova-learn logo.png" alt="NovaLearn" className="h-6 w-6" />
             <span className="font-bold">NovaLearn</span>
           </Link>
           {(user ? navigationItems : publicNavItems).map((item) => (

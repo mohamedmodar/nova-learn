@@ -283,7 +283,7 @@ const AboutUs = () => {
               <Database className="h-6 w-6 text-blue-600" />
             </div>
             <CardTitle className="text-lg mb-2">Course Database</CardTitle>
-            <p className="text-2xl font-bold text-blue-600 mb-2">10,000+</p>
+            <p className="text-2xl font-bold text-blue-600 mb-2">18,000+</p>
             <CardDescription>Courses from multiple platforms aggregated and processed</CardDescription>
           </Card>
           
