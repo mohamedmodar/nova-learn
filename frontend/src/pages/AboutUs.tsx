@@ -66,7 +66,7 @@ const AboutUs = () => {
     {
       icon: <Database className="h-8 w-8" />,
       title: "Backend Technologies", 
-      technologies: ["FastAPI", "Python", "PostgreSQL", "SQLAlchemy", "Pydantic"],
+      technologies: ["FastAPI", "Python", "eSQL", "SQLAlchemy", "Pydantic"],
       color: "green"
     },
     {
